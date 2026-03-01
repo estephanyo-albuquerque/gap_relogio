@@ -889,14 +889,26 @@ def generate_excel_report(delta_summary: pd.DataFrame):
         for c, val in enumerate(pivot.columns.values):
             ws.write(0, c, val, fmt_head)
         col_sev = pivot.columns.get_loc('Severidade')
+        # Substitua o bloco de escrita atual por este:
         for r in range(max_r):
             sev_val = pivot.iloc[r, col_sev]
             for c in range(max_c):
                 val = pivot.iloc[r, c]
-                if c == col_sev:
-                    ws.write(r + 1, c, val, sev_fmts.get(sev_val, fmt_border))
-                else:
-                    ws.write(r + 1, c, "" if pd.isna(val) else float(val), fmt_border)
+        
+            if c == col_sev:
+                ws.write(r + 1, c, val, sev_fmts.get(sev_val, fmt_border))
+            else:
+            # Tratamento de segurança: tenta converter, se falhar, escreve como string
+                try:
+                # Se for NaN, escreve vazio
+                    if pd.isna(val):
+                        ws.write(r + 1, c, "", fmt_border)
+                    else:
+                    # Tenta converter para float, se for string numérica
+                        ws.write(r + 1, c, float(val), fmt_border)
+                except (ValueError, TypeError):
+                # Se for um texto que não vira número, escreve o próprio texto
+                    ws.write(r + 1, c, str(val), fmt_border)
     output.seek(0)
     return output.getvalue()
 
