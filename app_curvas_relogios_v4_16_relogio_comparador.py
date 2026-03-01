@@ -1123,11 +1123,25 @@ if st.button("🚀 Gerar ZIP com PDFs"):
             st.dataframe(pd.DataFrame(errors, columns=["Turbina", "Erro"]), use_container_width=True)
 
 
-    st.markdown("### Exportação Global")
-    st.info("O botão abaixo processa TODAS as turbinas/pás da base com os filtros atuais.")
-    if st.button("🚀 Gerar Base Consolidada (Excel)"):
-        with st.spinner("Processando base completa (pode demorar)..."):
-            global_res = run_analysis(df_raw, full_process=True)
-            exc_bytes = generate_excel_report(global_res["delta_summary"])
-            if exc_bytes:
-                st.download_button("📥 Download Excel Completo", data=exc_bytes, file_name="Base_Consolidada.xlsx")
+st.markdown("### Exportação Global")
+st.info("O botão abaixo processa TODAS as turbinas/pás da base com os filtros atuais.")
+
+# Inicializa o estado se não existir
+if "excel_bytes" not in st.session_state:
+    st.session_state["excel_bytes"] = None
+
+# Botão de processamento
+if st.button("🚀 Gerar Base Consolidada (Excel)"):
+    with st.spinner("Processando base completa (pode demorar)..."):
+        global_res = run_analysis(df_raw, full_process=True)
+        # Armazena os bytes no session_state para persistir
+        st.session_state["excel_bytes"] = generate_excel_report(global_res["delta_summary"])
+
+# Renderiza o botão de download apenas se os dados existirem no estado
+if st.session_state["excel_bytes"] is not None:
+    st.download_button(
+        "📥 Download Excel Completo", 
+        data=st.session_state["excel_bytes"], 
+        file_name="Base_Consolidada.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
