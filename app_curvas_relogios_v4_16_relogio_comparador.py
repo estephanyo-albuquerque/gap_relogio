@@ -213,7 +213,7 @@ turb_sel = st.sidebar.multiselect(
 
 df_turb = df_raw[df_raw["Turbina"].isin(turb_sel)].copy() if turb_sel else df_raw.copy()
 
-blades = sorted(df_turb["SN_da_Pa"].dropna().unique().tolist())
+blades = sorted(df_turb["SN_da_Pa"].dropna().astype(str).unique().tolist())
 blades_sel = st.sidebar.multiselect("Pás", blades, default=blades)
 
 insps = sorted(df_turb["Inspecao"].dropna().unique().tolist())
