@@ -1,10 +1,4 @@
-# app_curvas_relogios_v4_46_FINAL_PDF_SIDE_BY_SIDE_EXEC.py
-# v4.46 — Ajuste de CAPA (canvas absoluto) + Plotly estável no Streamlit (keys) + mantém datas reais e curvas rebased
-# - Capa agora é desenhada 100% no canvas (posições fixas): faixa branca à esquerda + imagem à direita + barra azul sobre a imagem.
-# - Datas reais das coletas: por campanha (Inspecao) usa a data mais recente; "Date (Last)" = mais recente geral.
-# - Curvas: remove trecho inicial sem leitura e rebasa X (Streamlit + PDF).
-# - Streamlit: adiciona keys únicas para plotly_chart/dataframe dentro de loops (evita “só aparece depois de abrir/fechar” e “só últimos gráficos”).
-
+import sqlite3
 import io
 import os
 import datetime as dt
@@ -113,13 +107,41 @@ def load_data(uploaded_file) -> pd.DataFrame:
     if uploaded_file is None:
         return pd.DataFrame()
     try:
-        if uploaded_file.name.lower().endswith(".csv"):
+        fname = uploaded_file.name.lower()
+        
+        # Leitura de Excel/CSV (Mantida)
+        if fname.endswith(".csv"):
             return pd.read_csv(uploaded_file)
-        return pd.read_excel(uploaded_file)
-    except Exception:
+        if fname.endswith((".xlsx", ".xls")):
+            return pd.read_excel(uploaded_file)
+            
+        # NOVA: Leitura de SQLite (.db)
+        if fname.endswith(".db"):
+            # Salvamos o upload temporariamente em memória para o SQLite abrir
+            with open("temp_db.db", "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            conn = sqlite3.connect("temp_db.db")
+            
+            # Descobrir o nome da tabela automaticamente (pega a primeira)
+            query_table = "SELECT name FROM sqlite_master WHERE type='table';"
+            tables = pd.read_sql_query(query_table, conn)
+            
+            if tables.empty:
+                st.error("O arquivo .db não contém tabelas.")
+                return pd.DataFrame()
+            
+            table_name = tables.iloc[0]['name']
+            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+            conn.close()
+            return df
+            
+    except Exception as e:
+        st.error(f"Erro ao carregar arquivo: {e}")
         return pd.DataFrame()
+    return pd.DataFrame()
 
-uploaded = st.sidebar.file_uploader("Upload Base (Excel/CSV)", type=["csv", "xlsx", "xls"])
+uploaded = st.sidebar.file_uploader("Upload Base (Excel/CSV/DB)", type=["csv", "xlsx", "xls", "db"])
 df_raw = load_data(uploaded)
 
 if df_raw.empty:
