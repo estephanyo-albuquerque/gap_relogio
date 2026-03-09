@@ -890,47 +890,62 @@ def generate_pdf(results: Dict[str, Any]):
 def generate_excel_report(delta_summary: pd.DataFrame):
     if delta_summary is None or delta_summary.empty:
         return None
+        
     df_pivot = delta_summary.copy()
+    
+    # Garantir que Data seja formato datetime
+    df_pivot['Data'] = pd.to_datetime(df_pivot['Data'], errors='coerce')
+    
+    # Criar a coluna 'Data_Inspeção' pegando a data mínima de cada inspeção
+    df_pivot['Data_Inspeção'] = df_pivot.groupby(['Turbina', 'Blade', 'Inspecao'])['Data'].transform('min')
+    
+    # Formata para o Excel (formato brasileiro dd/mm/aaaa)
+    df_pivot['Data_Inspeção'] = df_pivot['Data_Inspeção'].dt.strftime('%d/%m/%Y')
+    
+    # Prepara o Pivot
     df_pivot['Sensor_Key'] = df_pivot['Casca'].astype(str) + '-' + df_pivot['Regiao'].astype(str)
-    pivot = df_pivot.pivot_table(index=['Turbina', 'Blade', 'Inspecao'], columns='Sensor_Key', values='Delta_medio_ciclo_mm')
+    
+    # Adicionamos 'Data_Inspeção' no índice do pivot
+    pivot = df_pivot.pivot_table(
+        index=['Turbina', 'Blade', 'Inspecao', 'Data_Inspeção'], 
+        columns='Sensor_Key', 
+        values='Delta_medio_ciclo_mm',
+        aggfunc='first' 
+    )
+    
+    # Cálculos de apoio
     pivot['Media'] = pivot.mean(axis=1)
     pivot['Maximo'] = pivot.max(axis=1)
     pivot['Severidade'] = pivot['Maximo'].apply(classify_severity)
     pivot = pivot.reset_index()
 
-    hex_colors = {"SEV0": "#c6efce", "SEV1": "#a9d18e", "SEV2": "#ffd966", "SEV3": "#f4b183", "SEV4": "#ff8c00", "SEV5": "#ff0000"}
+    # Criação do arquivo Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         pivot.to_excel(writer, sheet_name='Base_Consolidada', index=False)
         wb = writer.book
         ws = writer.sheets['Base_Consolidada']
+        
+        # Formatação (mantendo seu padrão)
         fmt_border = wb.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
         fmt_head = wb.add_format({'bold': True, 'align': 'center', 'border': 1, 'bg_color': '#D3D3D3'})
+        hex_colors = {"SEV0": "#c6efce", "SEV1": "#a9d18e", "SEV2": "#ffd966", "SEV3": "#f4b183", "SEV4": "#ff8c00", "SEV5": "#ff0000"}
         sev_fmts = {k: wb.add_format({'bg_color': v, 'border': 1, 'align': 'center'}) for k, v in hex_colors.items()}
+        
         (max_r, max_c) = pivot.shape
         for c, val in enumerate(pivot.columns.values):
             ws.write(0, c, val, fmt_head)
+        
         col_sev = pivot.columns.get_loc('Severidade')
-        # Substitua o bloco de escrita atual por este:
         for r in range(max_r):
             sev_val = pivot.iloc[r, col_sev]
             for c in range(max_c):
                 val = pivot.iloc[r, c]
-        
-            if c == col_sev:
-                ws.write(r + 1, c, val, sev_fmts.get(sev_val, fmt_border))
-            else:
-            # Tratamento de segurança: tenta converter, se falhar, escreve como string
-                try:
-                # Se for NaN, escreve vazio
-                    if pd.isna(val):
-                        ws.write(r + 1, c, "", fmt_border)
-                    else:
-                    # Tenta converter para float, se for string numérica
-                        ws.write(r + 1, c, float(val), fmt_border)
-                except (ValueError, TypeError):
-                # Se for um texto que não vira número, escreve o próprio texto
-                    ws.write(r + 1, c, str(val), fmt_border)
+                if c == col_sev:
+                    ws.write(r + 1, c, val, sev_fmts.get(sev_val, fmt_border))
+                else:
+                    ws.write(r + 1, c, "" if pd.isna(val) else (float(val) if isinstance(val, (int, float)) else val), fmt_border)
+                    
     output.seek(0)
     return output.getvalue()
 
