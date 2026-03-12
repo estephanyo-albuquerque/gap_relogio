@@ -407,9 +407,9 @@ def compute_cycle_delta(g: pd.DataFrame) -> Tuple[float, int]:
 def run_analysis(df_in: pd.DataFrame, full_process=False):
     if not full_process:
         df_subset = df_in[
-            (df_in["Turbina"].isin(turb_sel)) &
-            (df_in["SN_da_Pa"].isin(blades_sel)) &
-            (df_in["Inspecao"].isin(insps_sel))
+            (df_in["Turbina"].astype(str).isin([str(t) for t in turb_sel])) &
+            (df_in["SN_da_Pa"].astype(str).isin([str(b) for b in blades_sel])) &
+            (df_in["Inspecao"].astype(str).isin([str(i) for i in insps_sel]))
         ].copy()
     else:
         df_subset = df_in.copy()
