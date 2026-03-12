@@ -329,7 +329,7 @@ def process_data_core(df_target: pd.DataFrame) -> pd.DataFrame:
             base["Data"] = pd.to_datetime(base[date_col], errors="coerce", dayfirst=True)
             base.drop(columns=[date_col], inplace=True, errors="ignore")
         elif "Data" in df_target.columns:
-            base["Data"] = pd.to_datetime(df_target["Data"], errors="coerce", dayfirst=True)
+            base["Data"] = pd.to_datetime(df_target["Data"], errors="coerce")
         else:
             base["Data"] = pd.NaT
 
@@ -419,6 +419,16 @@ def run_analysis(df_in: pd.DataFrame, full_process=False):
 
     long_df = process_data_core(df_subset)
 
+    # ADICIONE ISSO PARA DEBUGAR
+    st.write(f"DEBUG: Total de linhas processadas: {len(long_df)}")
+    if "DR-08" in df_subset["Turbina"].values:
+        dr08_check = long_df[long_df["Turbina"] == "DR-08"]
+        st.write(f"DEBUG: Linhas da DR-08 após processamento: {len(dr08_check)}")
+        if len(dr08_check) > 0:
+            st.write(f"DEBUG: Valores não-nulos na DR-08: {dr08_check['Valor_mm'].notna().sum()}")
+        else:
+            st.error("ERRO: Os filtros descartaram todos os dados da DR-08!")
+
     delta_rows = []
     verify_items = []
 
@@ -461,7 +471,7 @@ def run_analysis(df_in: pd.DataFrame, full_process=False):
     colors_list = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
 
     for blade in blades_sel:
-        df_b = long_df[long_df["Blade"] == blade]
+        df_b = long_df[long_df["Blade"].astype(str) == str(blade)]
         if df_b.empty:
             continue
         sensors_data_list = []
@@ -480,12 +490,12 @@ def run_analysis(df_in: pd.DataFrame, full_process=False):
                 ax.plot(g_trim["Ponto"], g_trim["Valor_mm"], label=lbl, linewidth=1.5, color=c)
 
                 val_d = delta_summary[
-                    (delta_summary["Turbina"] == tb) &
-                    (delta_summary["Blade"] == blade) &
-                    (delta_summary["Casca"] == casca) &
-                    (delta_summary["Regiao"] == reg) &
-                    (delta_summary["Relogio"] == relogio) &
-                    (delta_summary["Inspecao"] == isp)
+                    (delta_summary["Turbina"].astype(str) == str(tb)) &
+                    (delta_summary["Blade"].astype(str) == str(blade)) &
+                    (delta_summary["Casca"].astype(str) == str(casca)) &
+                    (delta_summary["Regiao"].astype(str) == str(reg)) &
+                    (delta_summary["Relogio"].astype(str) == str(relogio)) &
+                    (delta_summary["Inspecao"].astype(str) == str(isp))
                 ]["Delta_medio_ciclo_mm"].max()
                 stats_rows.append({"Campanha": lbl, "Gap (mm)": val_d})
                 idx_color += 1
