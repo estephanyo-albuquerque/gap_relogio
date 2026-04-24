@@ -121,27 +121,50 @@ def theta_deg_from_perimeter(dist_bf_mm: pd.Series, perim_mm: float) -> pd.Serie
     return pd.Series(np.mod(theta, 360.0), index=dist_bf_mm.index, dtype=float)
 
 def process_calibre_data(df_raw_cal: pd.DataFrame, perim_mm_val: float) -> pd.DataFrame:
-    # ... (leitura das colunas iniciais igual ao anterior) ...
+    df = pd.DataFrame()
+    cols = list(df_raw_cal.columns)
     
+    # Mapeamento básico de colunas por posição para evitar KeyError
+    df["Turbina"] = df_raw_cal[cols[0]].astype("string").str.strip()
+    df["Blade"] = df_raw_cal[cols[1]].astype("string").str.strip()
+    df["Campaign"] = df_raw_cal[cols[2]].astype("string").str.strip()
+    df["Reference"] = df_raw_cal[cols[3]].astype("string").str.upper().str.strip()
+    df["Distance"] = pd.to_numeric(df_raw_cal[cols[4]], errors="coerce")
+    df["Shell"] = df_raw_cal[cols[5]].astype("string").str.upper().str.strip()
+    df["M3H"] = pd.to_numeric(df_raw_cal[cols[6]], errors="coerce")
+    df["M9H"] = pd.to_numeric(df_raw_cal[cols[7]], errors="coerce")
+    df["GAP"] = pd.to_numeric(df_raw_cal[cols[8]], errors="coerce")
+
     perim = float(perim_mm_val)
     meio = perim / 2.0
-    
+
+    # A função agora recebe a linha já com os nomes novos do DataFrame 'df'
     def calcular_distancia_absoluta(row):
-        shell = str(row["Shell"]).upper().strip()
-        ref = str(row["Reference"]).upper().strip()
-        dist = pd.to_numeric(row["Distance_to_Ref_mm"], errors="coerce")
+        shell = row["Shell"]
+        ref = row["Reference"]
+        dist = row["Distance"]
         
+        if pd.isna(dist): return 0.0
+
         if shell == "PS":
             if "BF" in ref: return dist
             if "BA" in ref: return meio - dist
         elif shell == "SS":
             if "BA" in ref: return meio + dist
             if "BF" in ref: return perim - dist
-        return dist # fallback
+        return dist
 
-    df["dist_bf_mm"] = df_raw_cal.apply(calcular_distancia_absoluta, axis=1)
+    # Aplicamos o cálculo no DataFrame 'df' que acabamos de criar e organizar
+    df["dist_bf_mm"] = df.apply(calcular_distancia_absoluta, axis=1)
     df["theta_deg"] = theta_deg_from_perimeter(df["dist_bf_mm"], perim)
-    return df
+    
+    # Renomeando para exibição final nas tabelas como você pediu
+    return df.rename(columns={
+        "Reference": "Bordo Ref.",
+        "Distance": "Distância (mm)",
+        "GAP": "Gap (mm)",
+        "Shell": "Casca"
+    })
 
 # ---------------------------------------------------------------------
 # Configurações Streamlit e Barra Lateral
