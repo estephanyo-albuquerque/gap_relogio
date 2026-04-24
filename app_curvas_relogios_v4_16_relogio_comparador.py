@@ -1475,7 +1475,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                         max_cal = 0
                         if not df_cal_blade.empty:
                             df_cal_blade = df_cal_blade.sort_values("theta_deg")
-                            max_cal = df_cal_blade["GAP (mm)"].max()
+                            max_cal = df_cal_blade["Gap (mm)"].max()
                             
                             if not df_cal_blade.empty:
                                 df_cal_cycle = pd.concat([df_cal_blade, df_cal_blade.iloc[[0]]], ignore_index=True)
