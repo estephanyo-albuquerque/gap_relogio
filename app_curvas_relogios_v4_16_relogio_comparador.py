@@ -1420,7 +1420,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                 if not df_cal_raw.empty:
                     bd_max = results["severity_by_blade_latest"].copy()
                     bd_max.rename(columns={"Delta_latest_max_mm": "Max_Gap_BlueDial"}, inplace=True)
-                    cal_max = df_cal_raw.groupby(["Turbina", "Blade"], as_index=False).agg(Max_Gap_Calibre=("GAP (mm)", "max"))
+                    cal_max = df_cal_raw.groupby(["Turbina", "Blade"], as_index=False).agg(Max_Gap_Calibre=("Gap (mm)", "max"))
                     
                     bd_max["Turbina"] = bd_max["Turbina"].astype(str).str.strip()
                     bd_max["Blade"] = bd_max["Blade"].astype(str).str.strip()
