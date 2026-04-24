@@ -1294,8 +1294,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             y = _clip_mm_for_visual(y_raw)
                             fig.add_trace(go.Scatterpolar(r=y, theta=theta, mode="lines", line=dict(width=2), name=f"{camp}"))
                             added_any = True
-                            if overlay_red and y_col == "GAP (mm)":
-                                g_raw = pd.to_numeric(d_c["GAP (mm)"], errors="coerce").values.astype(float)
+                            if overlay_red and y_col == "Gap (mm)":
+                                g_raw = pd.to_numeric(d_c["Gap (mm)"], errors="coerce").values.astype(float)
                                 if _series_has_valid_nonzero(g_raw, False):
                                     g = _clip_mm_for_visual(g_raw)
                                     g_red = np.where(g > 0, g, np.nan)
@@ -1480,10 +1480,10 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             if not df_cal_blade.empty:
                                 df_cal_cycle = pd.concat([df_cal_blade, df_cal_blade.iloc[[0]]], ignore_index=True)
                                 fig_cross.add_trace(go.Scatterpolar(
-                                    r=df_cal_cycle["GAP (mm)"], theta=df_cal_cycle["theta_deg"], mode='lines+markers',
+                                    r=df_cal_cycle["Gap (mm)"], theta=df_cal_cycle["theta_deg"], mode='lines+markers',
                                     marker=dict(size=6, color='red'), line=dict(color='red', width=2, dash='dash'),
                                     name='Calibre (Estático)', hoverinfo='text',
-                                    hovertext=[f"Gap Estático: {g:.2f}mm<br>Ângulo: {a:.1f}°" for g, a in zip(df_cal_cycle["GAP (mm)"], df_cal_cycle["theta_deg"])]
+                                    hovertext=[f"Gap Estático: {g:.2f}mm<br>Ângulo: {a:.1f}°" for g, a in zip(df_cal_cycle["Gap (mm)"], df_cal_cycle["theta_deg"])]
                                 ))
                                 
                         max_r = max(max_bd, max_cal) * 1.2
