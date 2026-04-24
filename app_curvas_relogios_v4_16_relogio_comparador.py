@@ -123,15 +123,27 @@ def theta_deg_from_perimeter(dist_bf_mm: pd.Series, perim_mm: float) -> pd.Serie
 def process_calibre_data(df_raw_cal: pd.DataFrame, perim_mm_val: float) -> pd.DataFrame:
     df = pd.DataFrame()
     cols = list(df_raw_cal.columns)
+    
     df["Turbina"] = df_raw_cal[cols[0]].astype("string").str.strip()
     df["Blade"] = df_raw_cal[cols[1]].astype("string").str.strip()
     df["Campaign"] = df_raw_cal[cols[2]].astype("string").str.strip()
     df["Reference"] = normalize_reference(df_raw_cal[cols[3]])
     df["Distance_to_Ref_mm"] = pd.to_numeric(df_raw_cal[cols[4]], errors="coerce")
-    df["M3H"] = pd.to_numeric(df_raw_cal[cols[5]], errors="coerce")
-    df["M9H"] = pd.to_numeric(df_raw_cal[cols[6]], errors="coerce")
-    df["GAP"] = pd.to_numeric(df_raw_cal["GAP"] if "GAP" in df_raw_cal.columns else df_raw_cal[cols[7]], errors="coerce")
-    df["dist_bf_mm"] = dist_to_bf_perimeter(df["Distance_to_Ref_mm"], df["Reference"], perim_mm_val)
+    
+    # NOVIDADE: Lendo a casca diretamente da coluna "Shell" do seu Excel
+    df["Shell_Excel"] = df_raw_cal["Shell"].astype("string").str.upper().str.strip()
+    
+    df["M3H"] = pd.to_numeric(df_raw_cal[cols[6]], errors="coerce")
+    df["M9H"] = pd.to_numeric(df_raw_cal[cols[7]], errors="coerce")
+    df["GAP"] = pd.to_numeric(df_raw_cal["Delta"], errors="coerce") # Coluna 'Delta' no seu Excel
+    
+    # Ajuste do cálculo da distância absoluta considerando a casca real
+    half = perim_mm_val / 2.0
+    d = df["Distance_to_Ref_mm"]
+    
+    # Se no Excel diz SS, somamos meia volta (half) para cair no quadrante 180-360
+    df["dist_bf_mm"] = np.where(df["Shell_Excel"] == "SS", half + d, d)
+    
     df["theta_deg"] = theta_deg_from_perimeter(df["dist_bf_mm"], perim_mm_val)
     return df
 
