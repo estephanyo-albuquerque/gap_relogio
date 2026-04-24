@@ -1294,8 +1294,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             y = _clip_mm_for_visual(y_raw)
                             fig.add_trace(go.Scatterpolar(r=y, theta=theta, mode="lines", line=dict(width=2), name=f"{camp}"))
                             added_any = True
-                            if overlay_red and y_col == "GAP":
-                                g_raw = pd.to_numeric(d_c["GAP"], errors="coerce").values.astype(float)
+                            if overlay_red and y_col == "GAP (mm)":
+                                g_raw = pd.to_numeric(d_c["GAP (mm)"], errors="coerce").values.astype(float)
                                 if _series_has_valid_nonzero(g_raw, False):
                                     g = _clip_mm_for_visual(g_raw)
                                     g_red = np.where(g > 0, g, np.nan)
@@ -1392,6 +1392,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                     st.markdown("---")
                     st.markdown("#### 📈 Gráficos por Pá — 3h | 9h | GAP (radial 0..5 mm)")
                     
+                    # --- CORREÇÃO DOS GRÁFICOS RADIAIS (3h | 9h | GAP) ---
                     cal_blades_list = df_cal[["Turbina", "Blade"]].drop_duplicates().values.tolist()
                     for tb, bl in cal_blades_list[:20]:
                         st.markdown(f"**Turbina `{tb}` — Pá `{bl}`**")
@@ -1406,7 +1407,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             fig9 = build_radar_mm(d_bl, float(perim_mm), "M9H", camps_case, "9h (mm)", False)
                             st.plotly_chart(fig9, use_container_width=True, key=f"cal_9h_{tb}_{bl}")
                         with cC:
-                            figg = build_radar_mm(d_bl, float(perim_mm), "GAP", camps_case, "GAP (mm) — Afetados em vermelho", True)
+                            # AQUI ESTAVA O ERRO: Alterado de "GAP" para "Gap (mm)"
+                            figg = build_radar_mm(d_bl, float(perim_mm), "Gap (mm)", camps_case, "GAP (mm) — Afetados em vermelho", True)
                             st.plotly_chart(figg, use_container_width=True, key=f"cal_gap_{tb}_{bl}")
                         st.divider()
 
