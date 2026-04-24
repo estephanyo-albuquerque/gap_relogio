@@ -121,30 +121,26 @@ def theta_deg_from_perimeter(dist_bf_mm: pd.Series, perim_mm: float) -> pd.Serie
     return pd.Series(np.mod(theta, 360.0), index=dist_bf_mm.index, dtype=float)
 
 def process_calibre_data(df_raw_cal: pd.DataFrame, perim_mm_val: float) -> pd.DataFrame:
-    df = pd.DataFrame()
-    cols = list(df_raw_cal.columns)
+    # ... (leitura das colunas iniciais igual ao anterior) ...
     
-    df["Turbina"] = df_raw_cal[cols[0]].astype("string").str.strip()
-    df["Blade"] = df_raw_cal[cols[1]].astype("string").str.strip()
-    df["Campaign"] = df_raw_cal[cols[2]].astype("string").str.strip()
-    df["Reference"] = normalize_reference(df_raw_cal[cols[3]])
-    df["Distance_to_Ref_mm"] = pd.to_numeric(df_raw_cal[cols[4]], errors="coerce")
+    perim = float(perim_mm_val)
+    meio = perim / 2.0
     
-    # NOVIDADE: Lendo a casca diretamente da coluna "Shell" do seu Excel
-    df["Shell_Excel"] = df_raw_cal["Shell"].astype("string").str.upper().str.strip()
-    
-    df["M3H"] = pd.to_numeric(df_raw_cal[cols[6]], errors="coerce")
-    df["M9H"] = pd.to_numeric(df_raw_cal[cols[7]], errors="coerce")
-    df["GAP"] = pd.to_numeric(df_raw_cal["Delta"], errors="coerce") # Coluna 'Delta' no seu Excel
-    
-    # Ajuste do cálculo da distância absoluta considerando a casca real
-    half = perim_mm_val / 2.0
-    d = df["Distance_to_Ref_mm"]
-    
-    # Se no Excel diz SS, somamos meia volta (half) para cair no quadrante 180-360
-    df["dist_bf_mm"] = np.where(df["Shell_Excel"] == "SS", half + d, d)
-    
-    df["theta_deg"] = theta_deg_from_perimeter(df["dist_bf_mm"], perim_mm_val)
+    def calcular_distancia_absoluta(row):
+        shell = str(row["Shell"]).upper().strip()
+        ref = str(row["Reference"]).upper().strip()
+        dist = pd.to_numeric(row["Distance_to_Ref_mm"], errors="coerce")
+        
+        if shell == "PS":
+            if "BF" in ref: return dist
+            if "BA" in ref: return meio - dist
+        elif shell == "SS":
+            if "BA" in ref: return meio + dist
+            if "BF" in ref: return perim - dist
+        return dist # fallback
+
+    df["dist_bf_mm"] = df_raw_cal.apply(calcular_distancia_absoluta, axis=1)
+    df["theta_deg"] = theta_deg_from_perimeter(df["dist_bf_mm"], perim)
     return df
 
 # ---------------------------------------------------------------------
