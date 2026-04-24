@@ -1313,17 +1313,44 @@ if "results" in st.session_state and st.session_state["results"] is not None:
 
                     def build_consolidated_frequency_radar(df_sel, perim_mm, bin_mm):
                         d = df_sel.copy()
-                        d["bin_mm"] = (np.round(pd.to_numeric(d["dist_bf_mm"], errors="coerce") / bin_mm) * bin_mm).clip(0.0, perim_mm)
-                        per_blade_point = d.groupby(["Turbina","Blade","bin_mm"], as_index=False).agg(Max_GAP=("GAP","max"))
+    
+    # Garantindo que usamos os nomes de colunas que você definiu no processamento
+    # Se você usou o código anterior, os nomes agora são esses:
+                        dist_col = "dist_bf_mm" 
+                        gap_col = "Gap (mm)" 
+
+                        d["bin_mm"] = (np.round(pd.to_numeric(d[dist_col], errors="coerce") / bin_mm) * bin_mm).clip(0.0, perim_mm)
+    
+    # CORREÇÃO: Alterado de "GAP" para gap_col ("Gap (mm)")
+                        per_blade_point = d.groupby(["Turbina","Blade","bin_mm"], as_index=False).agg(Max_GAP=(gap_col,"max"))
+    
                         per_blade_point["Affected"] = (pd.to_numeric(per_blade_point["Max_GAP"], errors="coerce").fillna(0) > 0).astype(int)
+    
                         freq = per_blade_point.groupby(["bin_mm"], as_index=False)["Affected"].sum().rename(columns={"Affected": "Blades_Affected"}).sort_values(["bin_mm"])
+    
                         tickvals, ticktext = build_ticks_perimeter(perim_mm)
                         theta = np.mod(180.0 - (freq["bin_mm"].values.astype(float) / perim_mm) * 360.0, 360.0)
                         r = pd.to_numeric(freq["Blades_Affected"], errors="coerce").fillna(0).values.astype(float)
+    
                         fig = go.Figure()
-                        fig.add_trace(go.Barpolar(r=r, theta=theta, width=360.0 * (bin_mm / perim_mm), marker_color=np.where(r > 0, "red", "rgba(200,200,200,0.35)"), marker_line_color="rgba(255,255,255,0.2)", marker_line_width=0.5))
-                        fig.update_layout(title="Radar Consolidado — Frequência de Ponto Afetado", margin=dict(l=40, r=40, t=80, b=30), showlegend=False,
-                                          polar=dict(angularaxis=dict(tickmode="array", tickvals=tickvals, ticktext=ticktext, rotation=0, direction="counterclockwise"), radialaxis=dict(title="Qtd. de pás", ticks="outside", ticklen=3, showline=True)))
+                        fig.add_trace(go.Barpolar(
+                            r=r, 
+                            theta=theta, 
+                            width=360.0 * (bin_mm / perim_mm), 
+                            marker_color=np.where(r > 0, "red", "rgba(200,200,200,0.35)"), 
+                            marker_line_color="rgba(255,255,255,0.2)", 
+                            marker_line_width=0.5
+                        ))
+    
+                        fig.update_layout(
+                            title="Radar Consolidado — Frequência de Ponto Afetado", 
+                            margin=dict(l=40, r=40, t=80, b=30), 
+                            showlegend=False,
+                            polar=dict(
+                                angularaxis=dict(tickmode="array", tickvals=tickvals, ticktext=ticktext, rotation=0, direction="counterclockwise"), 
+                                radialaxis=dict(title="Qtd. de pás", ticks="outside", ticklen=3, showline=True)
+                            )
+                        )
                         return fig, freq
 
                     st.markdown("---")
