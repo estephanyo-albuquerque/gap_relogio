@@ -1369,21 +1369,25 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                         idx = tmp.groupby(["Turbina","Blade"])["_score"].idxmax()
                         return tmp.loc[idx].drop(columns=["_score"], errors="ignore")
 
+                    # --- CORREÇÃO DOS TOP N (NOMES DAS COLUNAS) ---
                     top_n = 25 
+                    # Note que usamos "Distância (mm)" e "Gap (mm)" conforme o novo padrão
                     worst3h = _pick_worst_per_blade(df_cal, df_cal["M3H"].abs()).sort_values("M3H", key=lambda s: s.abs(), ascending=False).head(top_n)
                     worst9h = _pick_worst_per_blade(df_cal, df_cal["M9H"].abs()).sort_values("M9H", key=lambda s: s.abs(), ascending=False).head(top_n)
-                    worstgap = _pick_worst_per_blade(df_cal, df_cal["GAP"]).sort_values("GAP", ascending=False).head(top_n)
+                    
+                    # AQUI ESTAVA O ERRO: Alterado de "GAP" para "Gap (mm)"
+                    worstgap = _pick_worst_per_blade(df_cal, df_cal["Gap (mm)"]).sort_values("Gap (mm)", ascending=False).head(top_n)
 
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         st.markdown("**Top 3h (|3h|)**")
-                        st.dataframe(worst3h[["Turbina","Blade","Campaign","M3H","M9H","GAP"]].style.format(precision=2), use_container_width=True)
+                        st.dataframe(worst3h[["Turbina","Blade","Campaign","M3H","M9H","Gap (mm)"]].style.format(precision=2), use_container_width=True)
                     with c2:
                         st.markdown("**Top 9h (|9h|)**")
-                        st.dataframe(worst9h[["Turbina","Blade","Campaign","M3H","M9H","GAP"]].style.format(precision=2), use_container_width=True)
+                        st.dataframe(worst9h[["Turbina","Blade","Campaign","M3H","M9H","Gap (mm)"]].style.format(precision=2), use_container_width=True)
                     with c3:
                         st.markdown("**Top GAP**")
-                        st.dataframe(worstgap[["Turbina","Blade","Campaign","M3H","M9H","GAP"]].style.format(precision=2), use_container_width=True)
+                        st.dataframe(worstgap[["Turbina","Blade","Campaign","M3H","M9H","Gap (mm)"]].style.format(precision=2), use_container_width=True)
 
                     st.markdown("---")
                     st.markdown("#### 📈 Gráficos por Pá — 3h | 9h | GAP (radial 0..5 mm)")
