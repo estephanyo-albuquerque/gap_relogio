@@ -1543,12 +1543,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                                 df_cal_show["Casca"] = df_cal_show["theta_deg"].apply(identificar_casca_cal)
                                 
                                 df_cal_show = df_cal_show[[
-                                    "Casca", "Reference", "Distance_to_Ref_mm", "GAP"
-                                ]].rename(columns={
-                                    "Reference": "Bordo Ref.",
-                                    "Distance_to_Ref_mm": "Distância (mm)",
-                                    "GAP": "Gap (mm)"
-                                })
+                                    "Casca", "Bordo Ref.", "Distância (mm)", "Gap (mm)"
+                                ]]
 
                                 st.dataframe(
                                     df_cal_show.sort_values(by=["Casca", "Distância (mm)"])
