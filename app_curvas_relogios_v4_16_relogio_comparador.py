@@ -1474,9 +1474,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             if not df_cal_blade.empty:
                                 df_cal_show = df_cal_blade.copy()
                                 def identificar_casca_cal(ang):
-                                    if 45 <= ang <= 135: return "PS"
-                                    if 225 <= ang <= 315: return "SS"
-                                    return "Transição"
+                                    if 0 <= ang <= 180: return "PS"
+                                    else: return "SS"
                                 df_cal_show["Casca"] = df_cal_show["theta_deg"].apply(identificar_casca_cal)
                                 
                                 df_cal_show = df_cal_show[[
