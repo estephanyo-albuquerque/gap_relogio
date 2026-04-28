@@ -302,6 +302,28 @@ if blades_sel:
 else:
     st.sidebar.info("Selecione uma pá acima para registrar studs ausentes.")
 
+def get_severity_logic(gap_value, padrao="Arthwind"):
+    if padrao == "ENEL":
+        # Critérios exatos da imagem (ENEL)
+        if gap_value <= 0: return 0, "No gaps detected", (198/255, 239/255, 206/255) # Verde Escuro
+        if gap_value <= 0.5: return 1, "Gap ≤ 0,5mm (Insp. 6 meses)", (169/255, 209/255, 142/255) # Verde Claro
+        if gap_value <= 1.0: return 2, "0,5mm < Gap ≤ 1mm (Insp. 3 meses)", (255/255, 217/255, 102/255) # Bege
+        if gap_value <= 2.0: return 3, "1mm < Gap ≤ 2mm (Insp. 1 mês)", (255/255, 255/255, 0) # Amarelo
+        if gap_value <= 2.5: return 4, "2mm < Gap ≤ 2,5mm (Insp. 15 dias)", (244/255, 177/255, 131/255) # Laranja
+        return 5, "STOP WTG", (255/255, 0, 0) # Vermelho
+    else:
+        # Mantém sua lógica Arthwind original
+        if gap_value <= 0: return 0, "No gaps", (198/255, 239/255, 206/255)
+        if gap_value <= 0.6: return 1, "Gap up to 0,6mm", (169/255, 209/255, 142/255)
+        if gap_value <= 1.0: return 2, "Gap 0,6 to 1mm", (255/255, 217/255, 102/255)
+        if gap_value <= 3.0: return 3, "Gap 1 to 3mm", (244/255, 177/255, 131/255)
+        if gap_value <= 5.0: return 4, "Gap 3 to 5mm", (255/255, 140/255, 0)
+        return 5, "Stop Turbine", (255/255, 0, 0)
+# Função auxiliar para manter compatibilidade com o resto do código
+def severity_color_rgb(sev_num, padrao="Arthwind"):
+    # Retorna a cor baseada no número da severidade retornado pela função acima
+    pass # (A lógica acima já retorna a cor, usaremos ela direto no PDF)
+    
 # =====================================================================
 # PARTE 2: MOTOR MATEMÁTICO, GRÁFICOS E GERAÇÃO DE PDF
 # =====================================================================
@@ -683,7 +705,7 @@ def draw_image_cover(canvas, img_reader, x: float, y: float, w: float, h: float)
         canvas.drawImage(img_reader, dx, dy, width=sw, height=sh, mask='auto'); canvas.restoreState()
     except Exception: pass
 
-def _create_cover_and_intro(doc, results, h1, normal):
+def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     meta = results["meta"]
     sev_df = results.get("severity_by_blade_latest", results.get("severity_by_blade"))
     turbina_txt, blades_list_txt = meta.get("turb", "-"), ", ".join(map(str, meta.get("blades", [])))
@@ -768,13 +790,31 @@ def _create_cover_and_intro(doc, results, h1, normal):
     story.append(Paragraph("This report presents the findings of the root gap inspection performed on the wind turbine blades. The scope encompasses the analysis of displacement data collected via dial indicators during a full rotor rotation. The primary objective is to evaluate the gap variation at multiple specific points around the circumference (PS, SS, LE, TE), classify the severity of any deviations according to the client standards, and provide actionable maintenance recommendations to ensure the structural integrity and safe operation of the equipment.", normal))
     story.append(Spacer(1, 0.5 * cm))
 
-    story.append(Paragraph("6. Damages categorization", h1))
+# SUBSTITUIR O BLOCO DA SEÇÃO 6 NO PDF
+story.append(Paragraph("6. Damages categorization", h1))
+
+if modelo == "ENEL":
+    story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
     cat_data = [
         ["Severity", "Description", "Recommendation"],
-        ["SEV0", "No gaps detected", "12 Months"], ["SEV1", "Gap up to 0,6mm", "6 Months"],
-        ["SEV2", "Gap between 0,6 and 1mm", "3 Months"], ["SEV3", "Gap between 1 and 3mm", "1 Month"],
-        ["SEV4", "Gap between 3 and 5mm", "15 Days"], ["SEV5", "Gap higher than 5mm", "Stop Turbine"],
+        ["0", "No gaps detected", "Inspect every 6 months"],
+        ["1", "Gap ≤ 0,5mm", "Inspect every 6 months"],
+        ["2", "0,5mm < Gap ≤ 1mm", "Inspect every 3 months"],
+        ["3", "1mm < Gap ≤ 2mm", "Inspect every 1 month"],
+        ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
+        ["5", "Gap > 2,5 mm", "STOP WTG"]
     ]
+else:
+    cat_data = [
+        ["Severity", "Description", "Recommendation"],
+        ["SEV0", "No gaps detected", "12 Months"],
+        ["SEV1", "Gap up to 0,6mm", "6 Months"],
+        ["SEV2", "Gap 0,6 to 1mm", "3 Months"],
+        ["SEV3", "Gap 1 to 3mm", "1 Month"],
+        ["SEV4", "Gap 3 to 5mm", "15 Days"],
+        ["SEV5", "Gap higher than 5mm", "Stop Turbine"],
+    ]
+# (Mantenha a criação da Table(cat_data) e o TableStyle que você já tem abaixo)
     t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
     t_cat.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -797,7 +837,7 @@ def draw_header_footer(canvas, _doc):
         except Exception: pass
     canvas.restoreState()
 
-def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None):
+def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5 * cm, bottomMargin=2 * cm, leftMargin=1.5 * cm, rightMargin=1.5 * cm)
     styles = getSampleStyleSheet()
@@ -866,7 +906,7 @@ def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[in
     doc.build(story, onFirstPage=draw_cover_full, onLaterPages=draw_header_footer)
     buffer.seek(0); return buffer.getvalue()
 
-def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None):
+def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5 * cm, bottomMargin=2 * cm, leftMargin=1.5 * cm, rightMargin=1.5 * cm)
     styles = getSampleStyleSheet()
@@ -1632,8 +1672,20 @@ if "results" in st.session_state and st.session_state["results"] is not None:
     # =========================================================================
     # ABA 4: DOWNLOADS (A Nova Aba Exclusiva de Exportações)
     # =========================================================================
+    # =========================================================================
+    # ABA 4: DOWNLOADS (Atualizada com Padrão ENEL)
+    # =========================================================================
     elif aba_selecionada == "📥 Downloads":
         st.subheader("📥 Central de Relatórios e Exportações")
+        
+        # --- NOVO: Seletor de Padrão de Relatório ---
+        st.info("Escolha o critério de severidade que será aplicado aos arquivos PDF gerados abaixo.")
+        modelo_final = st.selectbox(
+            "Padrão de Severidade do Relatório:",
+            ["Arthwind", "ENEL"],
+            help="O padrão ENEL aplica limites de 2.5mm para parada e recomendações específicas da tabela ENEL."
+        )
+        st.markdown("---")
         
         c_d1, c_d2 = st.columns(2)
         
@@ -1648,11 +1700,11 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                     st.session_state["excel_bytes"] = generate_excel_report(global_res["delta_summary"])
             
             if st.session_state["excel_bytes"] is not None:
-                st.download_button("📥 Baixar Excel Consolidado", data=st.session_state["excel_bytes"], file_name="Base_Medicao_de_Gap.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button("📥 Baixar Excel Consolidado", data=st.session_state["excel_bytes"], file_name=f"Base_Medicao_Gap_{modelo_final}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         with c_d2:
             st.markdown("### 2️⃣ PDF Geral (Engenharia)")
-            st.info("Gera um arquivo ZIP contendo os PDFs técnicos e detalhados de TODAS as turbinas.")
+            st.info("Gera um arquivo ZIP contendo os PDFs técnicos de TODAS as turbinas.")
             
             if st.button("🚀 Processar ZIP (Engenharia)"):
                 turbs_to_run = sorted(df_raw["Turbina"].dropna().unique().tolist())
@@ -1663,7 +1715,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
 
                     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
                         for i, tb in enumerate(turbs_to_run, start=1):
-                            my_bar_zip_eng.progress(i / total, text=f"Gerando Engenharia: Turbina {tb} ({int((i / total) * 100)}%) - {i}/{total}")
+                            my_bar_zip_eng.progress(i / total, text=f"Gerando Engenharia: Turbina {tb} ({int((i / total) * 100)}%)")
                             
                             df_tb = df_raw[df_raw["Turbina"] == tb].copy()
                             b_sel = sorted(df_tb["SN_da_Pa"].dropna().unique().tolist())
@@ -1672,20 +1724,21 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             if b_sel and i_sel:
                                 try:
                                     res_tb = run_analysis(df_raw, full_process=False, t_sel=[tb], b_sel=b_sel, i_sel=i_sel)
-                                    pdf_tb = generate_pdf(res_tb, studs_ausentes_dict)
+                                    # ADICIONADO: Parâmetro 'modelo'
+                                    pdf_tb = generate_pdf(res_tb, studs_ausentes_dict, modelo=modelo_final)
                                     safe_name = str(tb).replace("/", "-").replace("\\", "-").strip()
-                                    zf.writestr(f"ATW-{safe_name}-GAP-ENG.pdf", pdf_tb)
+                                    zf.writestr(f"ATW-{safe_name}-GAP-ENG-{modelo_final}.pdf", pdf_tb)
                                 except Exception as e:
                                     errors.append((tb, str(e)))
 
-                    my_bar_zip_eng.progress(1.0, text="✅ ZIP de Engenharia concluído!")
+                    my_bar_zip_eng.progress(1.0, text=f"✅ ZIP ({modelo_final}) concluído!")
                     zip_buffer.seek(0)
-                    st.download_button("📥 Baixar ZIP Completo (Engenharia)", data=zip_buffer.getvalue(), file_name="Relatorios_Engenharia.zip", mime="application/zip")
-                    if errors: st.warning("Falhas ocorridas no processo:"); st.dataframe(pd.DataFrame(errors, columns=["Turbina", "Erro"]))
+                    st.download_button(f"📥 Baixar ZIP ({modelo_final})", data=zip_buffer.getvalue(), file_name=f"Relatorios_Engenharia_{modelo_final}.zip", mime="application/zip")
+                    if errors: st.warning("Falhas ocorridas:"); st.dataframe(pd.DataFrame(errors, columns=["Turbina", "Erro"]))
 
         st.markdown("---")
         st.markdown("### 3️⃣ PDF Individual da Turbina (Visão Cliente)")
-        st.info("Gere rapidamente o relatório executivo (Cliente) de uma turbina e campanha específica.")
+        st.info(f"Relatório executivo seguindo o padrão **{modelo_final}**.")
         
         col_down_t, col_down_i, col_down_btn = st.columns([2, 2, 1])
         
@@ -1702,23 +1755,12 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                     if b_sel_cli:
                         try:
                             res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
-                            ds = res_cli["delta_summary"]
-                            dt_max = ds["Data"].max() if not ds.empty else pd.NaT
-                            data_str_cli = pd.to_datetime(dt_max).strftime("%d-%m-%y") if pd.notna(dt_max) else str(down_insp).replace("/", "-")
+                            # ADICIONADO: Parâmetro 'modelo'
+                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
                             
-                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict)
                             safe_tb_cli = str(down_turb).replace("/", "-").replace("\\", "-").strip()
-                            filename_cli = f"ATW-{safe_tb_cli}-{data_str_cli}.pdf"
-                            
-                            # Salva no session_state para liberar o botão de download
                             st.session_state["pdf_ind_bytes"] = pdf_tb_cli
-                            st.session_state["pdf_ind_name"] = filename_cli
-                            st.success("PDF gerado com sucesso!")
+                            st.session_state["pdf_ind_name"] = f"ATW-{safe_tb_cli}-{modelo_final}.pdf"
+                            st.success(f"PDF ({modelo_final}) gerado!")
                         except Exception as e:
                             st.error(f"Erro ao gerar: {e}")
-                    else:
-                        st.warning("Não há pás para a turbina e campanha selecionadas.")
-                        
-        # Exibe o botão de baixar caso o PDF tenha sido gerado
-        if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
-            st.download_button("📥 Baixar PDF Desta Inspeção", data=st.session_state["pdf_ind_bytes"], file_name=st.session_state["pdf_ind_name"], mime="application/pdf")
