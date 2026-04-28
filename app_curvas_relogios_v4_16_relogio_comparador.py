@@ -1760,17 +1760,32 @@ if "results" in st.session_state and st.session_state["results"] is not None:
         with col_down_btn:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("📄 Processar PDF"):
-                with st.spinner("Gerando Relatório..."):
+                with st.spinner(f"Gerando Relatório {modelo_final}..."):
                     b_sel_cli = sorted(df_raw[(df_raw["Turbina"] == down_turb) & (df_raw["Inspecao"] == down_insp)]["SN_da_Pa"].dropna().unique().tolist())
                     if b_sel_cli:
                         try:
                             res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
-                            # ADICIONADO: Parâmetro 'modelo'
+                            
+                            # Gera os bytes do PDF
                             pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
                             
+                            # Salva no estado da sessão para persistência
                             safe_tb_cli = str(down_turb).replace("/", "-").replace("\\", "-").strip()
                             st.session_state["pdf_ind_bytes"] = pdf_tb_cli
                             st.session_state["pdf_ind_name"] = f"ATW-{safe_tb_cli}-{modelo_final}.pdf"
-                            st.success(f"PDF ({modelo_final}) gerado!")
+                            st.success("✅ Relatório pronto para baixar!")
                         except Exception as e:
                             st.error(f"Erro ao gerar: {e}")
+                    else:
+                        st.warning("Não há pás para a turbina e campanha selecionadas.")
+        
+        # --- AQUI É A CHAVE: O botão de download aparece logo abaixo se os bytes existirem ---
+        if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
+            st.markdown("---")
+            st.download_button(
+                label=f"📥 Baixar Agora: {st.session_state['pdf_ind_name']}",
+                data=st.session_state["pdf_ind_bytes"],
+                file_name=st.session_state["pdf_ind_name"],
+                mime="application/pdf",
+                use_container_width=True # Deixa o botão bem visível
+            )
