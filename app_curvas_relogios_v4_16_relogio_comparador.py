@@ -824,7 +824,7 @@ else:
         ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")), ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
     ]))
     story.append(t_cat); story.append(PageBreak())
-return story, draw_cover_full
+    return story, draw_cover_full
 
 def draw_header_footer(canvas, _doc):
     canvas.saveState()
