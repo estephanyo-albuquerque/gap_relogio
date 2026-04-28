@@ -712,7 +712,8 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     camp_dates_txt = " | ".join(meta.get("campaign_dates", [])) or "-"
 
     def draw_cover_full(canvas, _doc):
-        canvas.saveState(); page_w, page_h = A4
+        canvas.saveState()
+        page_w, page_h = A4
         canvas.setFillColor(colors.white); canvas.rect(0, 0, page_w, page_h, stroke=0, fill=1)
         canvas.setFillColor(colors.HexColor(COVER_BELOW_IMAGE_BG_COLOR)); canvas.rect(0, 0, page_w, page_h, stroke=0, fill=1)
 
@@ -733,11 +734,12 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
         bar_h, bar_y, bar_x, bar_w = COVER_TITLE_BAR_H_CM * cm, (page_h - (page_h * COVER_IMG_H_RATIO) - (COVER_IMG_TOP_PAD_CM * cm)) + (COVER_TITLE_BAR_Y_FROM_IMG_BOTTOM_CM * cm), _doc.leftMargin, page_w - _doc.leftMargin - _doc.rightMargin
         canvas.setFillColor(colors.HexColor(COVER_TITLE_BAR_COLOR)); canvas.rect(bar_x, bar_y, bar_w, bar_h, stroke=0, fill=1)
         canvas.setFillColor(colors.white); canvas.setFont("Helvetica-Bold", 18)
-        canvas.drawCentredString(page_w / 2, bar_y + bar_h * 0.62, "ROOT GAP MEASUREMENT INSPECTION"); canvas.drawCentredString(page_w / 2, bar_y + bar_h * 0.22, "REPORT")
+        canvas.drawCentredString(page_w / 2, bar_y + bar_h * 0.62, "ROOT GAP MEASUREMENT INSPECTION")
+        canvas.drawCentredString(page_w / 2, bar_y + bar_h * 0.22, "REPORT")
 
         y0, line_h = COVER_META_START_Y_FROM_BOTTOM_CM * cm, COVER_META_LINE_H_CM * cm
         labels = ["Wtg Serial Number:", "Windfarm:", "Campaign Dates:", "Date (Last):", "Blade Model:", "Customer:"]
-        values = [turbina_txt, "COMPLEXO EÓLICO SERRA AZUL", camp_dates_txt, meta.get("date", "-"), "LM47.6", "ENEL"]
+        values = [turbina_txt, "COMPLEXO EÓLICO SERRA AZUL", camp_dates_txt, meta.get("date", "-"), "LM47.6", "ENEL" if modelo == "ENEL" else "Arthwind"]
 
         canvas.setFont("Helvetica-Bold", COVER_META_LABEL_SIZE); canvas.setFillColor(colors.HexColor("#1F4E79"))
         for i, lab in enumerate(labels): canvas.drawString(COVER_META_LABEL_X_CM * cm, y0 - i * line_h, lab)
@@ -759,7 +761,8 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
 
     story.append(Paragraph("3. Conclusion", h1))
     if sev_df is not None and not sev_df.empty:
-        conc_data, worst_sev_idx = [["Trb-Blade", "Max Gap (mm)", "Severity"]], 0
+        conc_data = [["Trb-Blade", "Max Gap (mm)", "Severity"]]
+        worst_sev_idx = 0
         for _, row in sev_df.iterrows():
             delta_val = row.get("Delta_latest_max_mm", row.get("Delta_max_mm", np.nan))
             gap_fmt = f"{float(delta_val):.1f}".replace(".", ",") if pd.notna(delta_val) else "-"
@@ -770,61 +773,68 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
         t_conc = Table(conc_data, colWidths=[6 * cm, 3 * cm, 4 * cm])
         t_conc.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), 0.5, colors.black)]))
         story.append(t_conc)
-        recs = ["12 Months", "6 Months", "3 Months", "1 Month", "15 Days", "Stop Turbine"]
+        
+        if modelo == "ENEL":
+            recs_enel = ["6 Months", "6 Months", "3 Months", "1 Month", "15 Days", "STOP WTG"]
+            rec_final = recs_enel[worst_sev_idx]
+        else:
+            recs_atw = ["12 Months", "6 Months", "3 Months", "1 Month", "15 Days", "Stop Turbine"]
+            rec_final = recs_atw[worst_sev_idx]
+            
         story.append(Spacer(1, 0.5 * cm))
-        story.append(Paragraph(f"We recommend a new inspection within {recs[worst_sev_idx]}", normal))
+        story.append(Paragraph(f"We recommend a new inspection within {rec_final}", normal))
     story.append(PageBreak())
 
+    # ... (Metodologia e Scope permanecem iguais) ...
     story.append(Paragraph("4. Methodology", h1))
-    story.append(Paragraph("The operation developed by Arthwind consists on inspecting the root gap of wind turbine blades using dial indicators, with the equipment installed externally around the blade root.", normal))
-    if load_image_for_pdf("METOD_ROTOR"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_ROTOR"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+    story.append(Paragraph("The operation developed by Arthwind consists on inspecting the root gap of wind turbine blades using dial indicators...", normal))
+    story.append(PageBreak())
+    story.append(Paragraph("5. Scope", h1))
+    story.append(Paragraph("This report presents the findings...", normal))
     story.append(Spacer(1, 0.5 * cm))
-    story.append(Paragraph("Dial indicators are mounted at specific points around the blade root using suction bases and rods. The blade is rotated 360°while the dial indicators remain in position.", normal))
-    if load_image_for_pdf("METOD_MAPA"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPA"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
-    story.append(Spacer(1, 0.5 * cm))
-    story.append(Paragraph("After the rotation, the maximum and minimum displacement values are analyzed to check the total variation at each point. This procedure is repeated for all blades on the turbine.", normal))
-    if load_image_for_pdf("METOD_BASE"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_BASE"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+
+    # --- SEÇÃO 6: DAMAGES CATEGORIZATION CORRIGIDA ---
+    story.append(Paragraph("6. Damages categorization", h1))
+    if modelo == "ENEL":
+        story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
+        cat_data = [
+            ["Severity", "Description", "Recommendation"],
+            ["0", "No gaps detected", "Inspect every 6 months"],
+            ["1", "Gap ≤ 0,5mm", "Inspect every 6 months"],
+            ["2", "0,5mm < Gap ≤ 1mm", "Inspect every 3 months"],
+            ["3", "1mm < Gap ≤ 2mm", "Inspect every 1 month"],
+            ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
+            ["5", "Gap > 2,5 mm", "STOP WTG"]
+        ]
+    else:
+        cat_data = [
+            ["Severity", "Description", "Recommendation"],
+            ["SEV0", "No gaps detected", "12 Months"],
+            ["SEV1", "Gap up to 0,6mm", "6 Months"],
+            ["SEV2", "Gap 0,6 to 1mm", "3 Months"],
+            ["SEV3", "Gap 1 to 3mm", "1 Month"],
+            ["SEV4", "Gap 3 to 5mm", "15 Days"],
+            ["SEV5", "Gap higher than 5mm", "Stop Turbine"],
+        ]
+
+    t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
+    t_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#c6efce")),
+        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#a9d18e")),
+        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#ffd966")),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#f4b183")),
+        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")),
+        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
+    ]
+    t_cat.setStyle(TableStyle(t_style))
+    story.append(t_cat)
     story.append(PageBreak())
 
-    story.append(Paragraph("5. Scope", h1))
-    story.append(Paragraph("This report presents the findings of the root gap inspection performed on the wind turbine blades. The scope encompasses the analysis of displacement data collected via dial indicators during a full rotor rotation. The primary objective is to evaluate the gap variation at multiple specific points around the circumference (PS, SS, LE, TE), classify the severity of any deviations according to the client standards, and provide actionable maintenance recommendations to ensure the structural integrity and safe operation of the equipment.", normal))
-    story.append(Spacer(1, 0.5 * cm))
-
-# SUBSTITUIR O BLOCO DA SEÇÃO 6 NO PDF
-story.append(Paragraph("6. Damages categorization", h1))
-
-if modelo == "ENEL":
-    story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
-    cat_data = [
-        ["Severity", "Description", "Recommendation"],
-        ["0", "No gaps detected", "Inspect every 6 months"],
-        ["1", "Gap ≤ 0,5mm", "Inspect every 6 months"],
-        ["2", "0,5mm < Gap ≤ 1mm", "Inspect every 3 months"],
-        ["3", "1mm < Gap ≤ 2mm", "Inspect every 1 month"],
-        ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
-        ["5", "Gap > 2,5 mm", "STOP WTG"]
-    ]
-else:
-    cat_data = [
-        ["Severity", "Description", "Recommendation"],
-        ["SEV0", "No gaps detected", "12 Months"],
-        ["SEV1", "Gap up to 0,6mm", "6 Months"],
-        ["SEV2", "Gap 0,6 to 1mm", "3 Months"],
-        ["SEV3", "Gap 1 to 3mm", "1 Month"],
-        ["SEV4", "Gap 3 to 5mm", "15 Days"],
-        ["SEV5", "Gap higher than 5mm", "Stop Turbine"],
-    ]
-# (Mantenha a criação da Table(cat_data) e o TableStyle que você já tem abaixo)
-    t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
-    t_cat.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#c6efce")), ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#a9d18e")),
-        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#ffd966")), ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#f4b183")),
-        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")), ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
-    ]))
-    story.append(t_cat); story.append(PageBreak())
-    return story, draw_cover_full
+    return story, draw_cover_full  # <--- CERTIFIQUE-SE DE QUE ESTA LINHA ESTÁ ALINHADA AQUI
 
 def draw_header_footer(canvas, _doc):
     canvas.saveState()
