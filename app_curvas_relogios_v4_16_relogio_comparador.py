@@ -1703,7 +1703,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
     # =========================================================================
     # ABA 4: DOWNLOADS (Atualizada com Padrão ENEL)
     # =========================================================================
-    elif aba_selecionada == "📥 Downloads":
+elif aba_selecionada == "📥 Downloads":
         st.subheader("📥 Central de Relatórios e Exportações")
         
         # --- NOVO: Seletor de Padrão de Relatório ---
@@ -1752,7 +1752,6 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             if b_sel and i_sel:
                                 try:
                                     res_tb = run_analysis(df_raw, full_process=False, t_sel=[tb], b_sel=b_sel, i_sel=i_sel)
-                                    # ADICIONADO: Parâmetro 'modelo'
                                     pdf_tb = generate_pdf(res_tb, studs_ausentes_dict, modelo=modelo_final)
                                     safe_name = str(tb).replace("/", "-").replace("\\", "-").strip()
                                     zf.writestr(f"ATW-{safe_name}-GAP-ENG-{modelo_final}.pdf", pdf_tb)
@@ -1767,68 +1766,53 @@ if "results" in st.session_state and st.session_state["results"] is not None:
         st.markdown("---")
         st.markdown("### 3️⃣ PDF Individual da Turbina (Visão Cliente)")
         st.info(f"Relatório executivo seguindo o padrão **{modelo_final}**.")
-        
+
+        # 1. DEFINA AS VARIÁVEIS DE COLUNA PRIMEIRO
         col_down_t, col_down_i, col_down_btn = st.columns([2, 2, 1])
-        
+
+        # 2. AGORA VOCÊ PODE USAR O WITH
         with col_down_t:
             down_turb = st.selectbox("Selecione a Turbina:", sorted(df_raw["Turbina"].dropna().unique()), key="down_t")
+
         with col_down_i:
             down_insp = st.selectbox("Selecione a Campanha / Data:", sorted(df_raw[df_raw["Turbina"] == down_turb]["Inspecao"].dropna().unique()), key="down_i")
             
-with col_down_btn:
-st.markdown("---")
-st.markdown("### 3️⃣ PDF Individual da Turbina (Visão Cliente)")
-st.info(f"Relatório executivo seguindo o padrão **{modelo_final}**.")
+        with col_down_btn:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("📄 Processar PDF"):
+                with st.spinner(f"Gerando Relatório {modelo_final}..."):
+                    b_sel_cli = sorted(df_raw[(df_raw["Turbina"] == down_turb) & (df_raw["Inspecao"] == down_insp)]["SN_da_Pa"].dropna().unique().tolist())
+                    
+                    if b_sel_cli:
+                        try:
+                            # Executa a análise para a turbina e campanha selecionadas
+                            res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
+                            
+                            # Gera os bytes do PDF
+                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
+                            
+                            # --- AJUSTE DE NOMENCLATURA DINÂMICA ---
+                            safe_tb = str(down_turb).replace("/", "-").replace("\\", "-").strip()
+                            campanha_safe = str(down_insp).replace("/", "-").replace("\\", "-").strip()
+                            nome_final_pdf = f"ATW-{safe_tb}-{campanha_safe}-{modelo_final}.pdf"
+                            
+                            # 3. Salva no session_state
+                            st.session_state["pdf_ind_bytes"] = pdf_tb_cli
+                            st.session_state["pdf_ind_name"] = nome_final_pdf
+                            
+                            st.success(f"✅ Relatório da Campanha {down_insp} pronto!")
+                        except Exception as e:
+                            st.error(f"Erro ao gerar: {e}")
+                    else:
+                        st.warning("Não há pás para a turbina e campanha selecionadas.")
 
-# 1. DEFINA AS VARIÁVEIS DE COLUNA PRIMEIRO
-col_down_t, col_down_i, col_down_btn = st.columns([2, 2, 1])
-
-# 2. AGORA VOCÊ PODE USAR O WITH
-with col_down_t:
-    down_turb = st.selectbox("Selecione a Turbina:", sorted(df_raw["Turbina"].dropna().unique()), key="down_t")
-
-with col_down_i:
-    down_insp = st.selectbox("Selecione a Campanha / Data:", sorted(df_raw[df_raw["Turbina"] == down_turb]["Inspecao"].dropna().unique()), key="down_i")
-    
-with col_down_btn:
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("📄 Processar PDF"):
-        with st.spinner(f"Gerando Relatório {modelo_final}..."):
-            b_sel_cli = sorted(df_raw[(df_raw["Turbina"] == down_turb) & (df_raw["Inspecao"] == down_insp)]["SN_da_Pa"].dropna().unique().tolist())
-            
-            if b_sel_cli:
-                try:
-                    # Executa a análise para a turbina e campanha selecionadas
-                    res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
-                    
-                    # Gera os bytes do PDF (Certifique-se que o parâmetro modelo=modelo_final está aqui)
-                    pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
-                    
-                    # --- AJUSTE DE NOMENCLATURA DINÂMICA ---
-                    # 1. Remove barras e espaços das variáveis para evitar erro de download
-                    safe_tb = str(down_turb).replace("/", "-").replace("\\", "-").strip()
-                    campanha_safe = str(down_insp).replace("/", "-").replace("\\", "-").strip()
-                    
-                    # 2. Constrói o nome: ATW-Turbina-Campanha-Padrao.pdf
-                    nome_final_pdf = f"ATW-{safe_tb}-{campanha_safe}-{modelo_final}.pdf"
-                    
-                    # 3. Salva no session_state
-                    st.session_state["pdf_ind_bytes"] = pdf_tb_cli
-                    st.session_state["pdf_ind_name"] = nome_final_pdf
-                    
-                    st.success(f"✅ Relatório da Campanha {down_insp} pronto!")
-                except Exception as e:
-                    st.error(f"Erro ao gerar: {e}")
-            else:
-                st.warning("Não há pás para a turbina e campanha selecionadas.")
-
-# O botão de download reflete automaticamente o nome guardado no session_state
-if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
-    st.markdown("---")
-    st.download_button(
-        label=f"📥 Baixar Agora: {st.session_state['pdf_ind_name']}",
-        data=st.session_state["pdf_ind_bytes"],
-        file_name=st.session_state["pdf_ind_name"],
-        mime="application/pdf",
-        use_container_width=True 
-    )
+        # O botão de download reflete automaticamente o nome guardado no session_state
+        if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
+            st.markdown("---")
+            st.download_button(
+                label=f"📥 Baixar Agora: {st.session_state['pdf_ind_name']}",
+                data=st.session_state["pdf_ind_bytes"],
+                file_name=st.session_state["pdf_ind_name"],
+                mime="application/pdf",
+                use_container_width=True 
+            )
