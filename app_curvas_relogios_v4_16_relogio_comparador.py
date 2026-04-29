@@ -803,6 +803,9 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
 
     # --- SEÇÃO 6: DAMAGES CATEGORIZATION CORRIGIDA ---
     story.append(Paragraph("6. Damages categorization", h1))
+# --- SEÇÃO 6: DAMAGES CATEGORIZATION CORRIGIDA ---
+    story.append(Paragraph("6. Damages categorization", h1))
+
     if modelo == "ENEL":
         story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
         cat_data = [
@@ -814,21 +817,8 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
             ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
             ["5", "Gap > 2,5 mm", "STOP WTG"]
         ]
-    t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
-    t_style = [
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#c6efce")),
-        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#a9d18e")),
-        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#ffd966")),
-        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#f4b183")),
-        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")),
-        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
-    ]
-    story.append(t_cat)
-    story.append(PageBreak())
+        # Cores exatas do padrão ENEL
+        c0, c1, c2, c3, c4, c5 = "#c6efce", "#a9d18e", "#ffd966", "#f4b183", "#ff8c00", "#ff0000"
     else:
         cat_data = [
             ["Severity", "Description", "Recommendation"],
@@ -839,24 +829,30 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
             ["SEV4", "Gap 3 to 5mm", "15 Days"],
             ["SEV5", "Gap higher than 5mm", "Stop Turbine"],
         ]
+        # Cores padrão Arthwind
+        c0, c1, c2, c3, c4, c5 = "#c6efce", "#a9d18e", "#ffd966", "#f4b183", "#ff8c00", "#ff0000"
 
+    # Criação da Tabela (Fora do if/else para evitar repetição de código)
     t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
-    t_style = [
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+    t_cat.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")), # Cabeçalho
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#c6efce")),
-        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#a9d18e")),
-        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#ffd966")),
-        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#f4b183")),
-        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")),
-        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
-    ]
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Aplicação das cores nas linhas
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor(c0)),
+        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor(c1)),
+        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor(c2)),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor(c3)),
+        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor(c4)),
+        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor(c5)),
+    ]))
+
     story.append(t_cat)
     story.append(PageBreak())
 
-    return story, draw_cover_full  # <--- CERTIFIQUE-SE DE QUE ESTA LINHA ESTÁ ALINHADA AQUI
+    return story, draw_cover_full
 
 def draw_header_footer(canvas, _doc):
     canvas.saveState()
