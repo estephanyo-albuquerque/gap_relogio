@@ -814,7 +814,8 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
             ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
             ["5", "Gap > 2,5 mm", "STOP WTG"]
         ]
-            t_style = [
+    t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
+    t_style = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
