@@ -738,7 +738,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
         canvas.drawCentredString(page_w / 2, bar_y + bar_h * 0.22, "REPORT")
 
         y0, line_h = COVER_META_START_Y_FROM_BOTTOM_CM * cm, COVER_META_LINE_H_CM * cm
-        labels = ["Wtg Serial Number:", "Windfarm:", "Campaign Dates:", "Date (Last):", "Blade Model:", "Customer:"]
+        labels = ["Wtg Serial Number:", "Windfarm:", "Campaign Dates:", "Date (dd-mm-yyyy):", "Blade Model:", "Customer:"]
         values = [turbina_txt, "COMPLEXO EÓLICO SERRA AZUL", camp_dates_txt, meta.get("date", "-"), "LM47.6", "ENEL" if modelo == "ENEL" else "Arthwind"]
 
         canvas.setFont("Helvetica-Bold", COVER_META_LABEL_SIZE); canvas.setFillColor(colors.HexColor("#1F4E79"))
