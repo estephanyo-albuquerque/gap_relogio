@@ -1703,7 +1703,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
     # =========================================================================
     # ABA 4: DOWNLOADS (Atualizada com Padrão ENEL)
     # =========================================================================
-elif aba_selecionada == "📥 Downloads":
+    elif aba_selecionada == "📥 Downloads":
         st.subheader("📥 Central de Relatórios e Exportações")
         
         # O modelo_final deve ser definido no início da aba para ser usado em todos os processos
