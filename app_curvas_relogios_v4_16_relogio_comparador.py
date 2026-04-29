@@ -1706,12 +1706,13 @@ if "results" in st.session_state and st.session_state["results"] is not None:
 elif aba_selecionada == "📥 Downloads":
         st.subheader("📥 Central de Relatórios e Exportações")
         
-        # --- NOVO: Seletor de Padrão de Relatório ---
-        st.info("Escolha o critério de severidade que será aplicado aos arquivos PDF gerados abaixo.")
+        # O modelo_final deve ser definido no início da aba para ser usado em todos os processos
+        st.info("Escolha o critério de severidade que será aplicado aos arquivos PDF.")
         modelo_final = st.selectbox(
             "Padrão de Severidade do Relatório:",
             ["Arthwind", "ENEL"],
-            help="O padrão ENEL aplica limites de 2.5mm para parada e recomendações específicas da tabela ENEL."
+            help="O padrão ENEL aplica limites de 2.5mm para parada e recomendações específicas da tabela ENEL.",
+            key="sel_mod_final"
         )
         st.markdown("---")
         
@@ -1719,11 +1720,11 @@ elif aba_selecionada == "📥 Downloads":
         
         with c_d1:
             st.markdown("### 1️⃣ Base Consolidada Geral (Excel)")
-            st.info("Gera um arquivo Excel contendo todos os dados processados do Relógio Comparador.")
+            st.info("Gera um arquivo Excel contendo todos os dados processados.")
             
             if "excel_bytes" not in st.session_state: st.session_state["excel_bytes"] = None
             if st.button("🚀 Processar Base (Excel)"):
-                with st.spinner("Processando dados e montando planilha..."):
+                with st.spinner("Processando dados..."):
                     global_res = run_analysis(df_raw, full_process=True)
                     st.session_state["excel_bytes"] = generate_excel_report(global_res["delta_summary"])
             
@@ -1732,18 +1733,18 @@ elif aba_selecionada == "📥 Downloads":
 
         with c_d2:
             st.markdown("### 2️⃣ PDF Geral (Engenharia)")
-            st.info("Gera um arquivo ZIP contendo os PDFs técnicos de TODAS as turbinas.")
+            st.info("Gera um arquivo ZIP com os PDFs técnicos de TODAS as turbinas.")
             
             if st.button("🚀 Processar ZIP (Engenharia)"):
                 turbs_to_run = sorted(df_raw["Turbina"].dropna().unique().tolist())
                 if turbs_to_run:
                     zip_buffer, errors = io.BytesIO(), []
                     total = len(turbs_to_run)
-                    my_bar_zip_eng = st.progress(0, text="Preparando lote de Engenharia...")
+                    my_bar_zip_eng = st.progress(0, text="Preparando lote...")
 
                     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
                         for i, tb in enumerate(turbs_to_run, start=1):
-                            my_bar_zip_eng.progress(i / total, text=f"Gerando Engenharia: Turbina {tb} ({int((i / total) * 100)}%)")
+                            my_bar_zip_eng.progress(i / total, text=f"Gerando: {tb} ({int((i / total) * 100)}%)")
                             
                             df_tb = df_raw[df_raw["Turbina"] == tb].copy()
                             b_sel = sorted(df_tb["SN_da_Pa"].dropna().unique().tolist())
@@ -1761,16 +1762,15 @@ elif aba_selecionada == "📥 Downloads":
                     my_bar_zip_eng.progress(1.0, text=f"✅ ZIP ({modelo_final}) concluído!")
                     zip_buffer.seek(0)
                     st.download_button(f"📥 Baixar ZIP ({modelo_final})", data=zip_buffer.getvalue(), file_name=f"Relatorios_Engenharia_{modelo_final}.zip", mime="application/zip")
-                    if errors: st.warning("Falhas ocorridas:"); st.dataframe(pd.DataFrame(errors, columns=["Turbina", "Erro"]))
+                    if errors: st.warning("Falhas:"); st.dataframe(pd.DataFrame(errors, columns=["Turbina", "Erro"]))
 
         st.markdown("---")
         st.markdown("### 3️⃣ PDF Individual da Turbina (Visão Cliente)")
         st.info(f"Relatório executivo seguindo o padrão **{modelo_final}**.")
 
-        # 1. DEFINA AS VARIÁVEIS DE COLUNA PRIMEIRO
+        # 1. Definição das colunas ANTES do uso
         col_down_t, col_down_i, col_down_btn = st.columns([2, 2, 1])
 
-        # 2. AGORA VOCÊ PODE USAR O WITH
         with col_down_t:
             down_turb = st.selectbox("Selecione a Turbina:", sorted(df_raw["Turbina"].dropna().unique()), key="down_t")
 
@@ -1785,18 +1785,18 @@ elif aba_selecionada == "📥 Downloads":
                     
                     if b_sel_cli:
                         try:
-                            # Executa a análise para a turbina e campanha selecionadas
+                            # Análise técnica
                             res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
                             
-                            # Gera os bytes do PDF
+                            # Geração do PDF
                             pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
                             
-                            # --- AJUSTE DE NOMENCLATURA DINÂMICA ---
+                            # Nomenclatura Dinâmica
                             safe_tb = str(down_turb).replace("/", "-").replace("\\", "-").strip()
                             campanha_safe = str(down_insp).replace("/", "-").replace("\\", "-").strip()
                             nome_final_pdf = f"ATW-{safe_tb}-{campanha_safe}-{modelo_final}.pdf"
                             
-                            # 3. Salva no session_state
+                            # Persistência
                             st.session_state["pdf_ind_bytes"] = pdf_tb_cli
                             st.session_state["pdf_ind_name"] = nome_final_pdf
                             
@@ -1804,9 +1804,9 @@ elif aba_selecionada == "📥 Downloads":
                         except Exception as e:
                             st.error(f"Erro ao gerar: {e}")
                     else:
-                        st.warning("Não há pás para a turbina e campanha selecionadas.")
+                        st.warning("Não há pás disponíveis.")
 
-        # O botão de download reflete automaticamente o nome guardado no session_state
+        # Botão de download (Sempre alinhado fora do bloco do botão de processar)
         if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
             st.markdown("---")
             st.download_button(
