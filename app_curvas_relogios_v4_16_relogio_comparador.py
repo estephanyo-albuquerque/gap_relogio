@@ -1790,7 +1790,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             # Salva no estado da sessão para persistência
                             safe_tb_cli = str(down_turb).replace("/", "-").replace("\\", "-").strip()
                             st.session_state["pdf_ind_bytes"] = pdf_tb_cli
-                            st.session_state["pdf_ind_name"] = f"ATW-{safe_tb_cli}-{modelo_final}.pdf"
+                            st.session_state["pdf_ind_name"] = f"ATW-{down_turb}-{campanha_safe}-{modelo_final}.pdf"
                             st.success("✅ Relatório pronto para baixar!")
                         except Exception as e:
                             st.error(f"Erro ao gerar: {e}")
