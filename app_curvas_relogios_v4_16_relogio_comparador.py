@@ -1776,6 +1776,21 @@ if "results" in st.session_state and st.session_state["results"] is not None:
             down_insp = st.selectbox("Selecione a Campanha / Data:", sorted(df_raw[df_raw["Turbina"] == down_turb]["Inspecao"].dropna().unique()), key="down_i")
             
 with col_down_btn:
+st.markdown("---")
+st.markdown("### 3️⃣ PDF Individual da Turbina (Visão Cliente)")
+st.info(f"Relatório executivo seguindo o padrão **{modelo_final}**.")
+
+# 1. DEFINA AS VARIÁVEIS DE COLUNA PRIMEIRO
+col_down_t, col_down_i, col_down_btn = st.columns([2, 2, 1])
+
+# 2. AGORA VOCÊ PODE USAR O WITH
+with col_down_t:
+    down_turb = st.selectbox("Selecione a Turbina:", sorted(df_raw["Turbina"].dropna().unique()), key="down_t")
+
+with col_down_i:
+    down_insp = st.selectbox("Selecione a Campanha / Data:", sorted(df_raw[df_raw["Turbina"] == down_turb]["Inspecao"].dropna().unique()), key="down_i")
+    
+with col_down_btn:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📄 Processar PDF"):
         with st.spinner(f"Gerando Relatório {modelo_final}..."):
