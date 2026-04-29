@@ -1775,35 +1775,45 @@ if "results" in st.session_state and st.session_state["results"] is not None:
         with col_down_i:
             down_insp = st.selectbox("Selecione a Campanha / Data:", sorted(df_raw[df_raw["Turbina"] == down_turb]["Inspecao"].dropna().unique()), key="down_i")
             
-        with col_down_btn:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("📄 Processar PDF"):
-                with st.spinner(f"Gerando Relatório {modelo_final}..."):
-                    b_sel_cli = sorted(df_raw[(df_raw["Turbina"] == down_turb) & (df_raw["Inspecao"] == down_insp)]["SN_da_Pa"].dropna().unique().tolist())
-                    if b_sel_cli:
-                        try:
-                            res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
-                            
-                            # Gera os bytes do PDF
-                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
-                            
-                            # Salva no estado da sessão para persistência
-                            safe_tb_cli = str(down_turb).replace("/", "-").replace("\\", "-").strip()
-                            st.session_state["pdf_ind_bytes"] = pdf_tb_cli
-                            st.session_state["pdf_ind_name"] = f"ATW-{down_turb}-{campanha_safe}-{modelo_final}.pdf"
-                            st.success("✅ Relatório pronto para baixar!")
-                        except Exception as e:
-                            st.error(f"Erro ao gerar: {e}")
-                    else:
-                        st.warning("Não há pás para a turbina e campanha selecionadas.")
-        
-        # --- AQUI É A CHAVE: O botão de download aparece logo abaixo se os bytes existirem ---
-        if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
-            st.markdown("---")
-            st.download_button(
-                label=f"📥 Baixar Agora: {st.session_state['pdf_ind_name']}",
-                data=st.session_state["pdf_ind_bytes"],
-                file_name=st.session_state["pdf_ind_name"],
-                mime="application/pdf",
-                use_container_width=True # Deixa o botão bem visível
-            )
+with col_down_btn:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("📄 Processar PDF"):
+        with st.spinner(f"Gerando Relatório {modelo_final}..."):
+            b_sel_cli = sorted(df_raw[(df_raw["Turbina"] == down_turb) & (df_raw["Inspecao"] == down_insp)]["SN_da_Pa"].dropna().unique().tolist())
+            
+            if b_sel_cli:
+                try:
+                    # Executa a análise para a turbina e campanha selecionadas
+                    res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp])
+                    
+                    # Gera os bytes do PDF (Certifique-se que o parâmetro modelo=modelo_final está aqui)
+                    pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_final)
+                    
+                    # --- AJUSTE DE NOMENCLATURA DINÂMICA ---
+                    # 1. Remove barras e espaços das variáveis para evitar erro de download
+                    safe_tb = str(down_turb).replace("/", "-").replace("\\", "-").strip()
+                    campanha_safe = str(down_insp).replace("/", "-").replace("\\", "-").strip()
+                    
+                    # 2. Constrói o nome: ATW-Turbina-Campanha-Padrao.pdf
+                    nome_final_pdf = f"ATW-{safe_tb}-{campanha_safe}-{modelo_final}.pdf"
+                    
+                    # 3. Salva no session_state
+                    st.session_state["pdf_ind_bytes"] = pdf_tb_cli
+                    st.session_state["pdf_ind_name"] = nome_final_pdf
+                    
+                    st.success(f"✅ Relatório da Campanha {down_insp} pronto!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar: {e}")
+            else:
+                st.warning("Não há pás para a turbina e campanha selecionadas.")
+
+# O botão de download reflete automaticamente o nome guardado no session_state
+if "pdf_ind_bytes" in st.session_state and st.session_state["pdf_ind_bytes"] is not None:
+    st.markdown("---")
+    st.download_button(
+        label=f"📥 Baixar Agora: {st.session_state['pdf_ind_name']}",
+        data=st.session_state["pdf_ind_bytes"],
+        file_name=st.session_state["pdf_ind_name"],
+        mime="application/pdf",
+        use_container_width=True 
+    )
