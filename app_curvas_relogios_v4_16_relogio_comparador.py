@@ -787,10 +787,18 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
 
     # ... (Metodologia e Scope permanecem iguais) ...
     story.append(Paragraph("4. Methodology", h1))
-    story.append(Paragraph("The operation developed by Arthwind consists on inspecting the root gap of wind turbine blades using dial indicators...", normal))
+    story.append(Paragraph("The operation developed by Arthwind consists on inspecting the root gap of wind turbine blades using dial indicators, with the equipment installed externally around the blade root.", normal))
+    if load_image_for_pdf("METOD_ROTOR"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_ROTOR"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+    story.append(Spacer(1, 0.5 * cm))
+    story.append(Paragraph("Dial indicators are mounted at specific points around the blade root using suction bases and rods. The blade is rotated 360°while the dial indicators remain in position.", normal))
+    if load_image_for_pdf("METOD_MAPA"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPA"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+    story.append(Spacer(1, 0.5 * cm))
+    story.append(Paragraph("After the rotation, the maximum and minimum displacement values are analyzed to check the total variation at each point. This procedure is repeated for all blades on the turbine.", normal))
+    if load_image_for_pdf("METOD_BASE"): story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_BASE"), max_w=12*cm, max_h=5.5*cm)]], colWidths=[A4[0] - doc.leftMargin - doc.rightMargin], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
     story.append(PageBreak())
+
     story.append(Paragraph("5. Scope", h1))
-    story.append(Paragraph("This report presents the findings...", normal))
+    story.append(Paragraph("This report presents the findings of the root gap inspection performed on the wind turbine blades. The scope encompasses the analysis of displacement data collected via dial indicators during a full rotor rotation. The primary objective is to evaluate the gap variation at multiple specific points around the circumference (PS, SS, LE, TE), classify the severity of any deviations according to the client standards, and provide actionable maintenance recommendations to ensure the structural integrity and safe operation of the equipment.", normal))
     story.append(Spacer(1, 0.5 * cm))
 
     # --- SEÇÃO 6: DAMAGES CATEGORIZATION CORRIGIDA ---
@@ -830,7 +838,6 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
         ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")),
         ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
     ]
-    t_cat.setStyle(TableStyle(t_style))
     story.append(t_cat)
     story.append(PageBreak())
 
@@ -923,7 +930,7 @@ def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, 
     h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=14, textColor=colors.HexColor("#1F4E79"), spaceAfter=10)
     normal = ParagraphStyle("Norm", parent=styles["Normal"], fontSize=10, leading=12, alignment=TA_JUSTIFY)
 
-    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal)
+    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal, modelo=modelo)
     story.append(Paragraph("7. Inspection Evidence", h1))
     usable_w = A4[0] - doc.leftMargin - doc.rightMargin
 
