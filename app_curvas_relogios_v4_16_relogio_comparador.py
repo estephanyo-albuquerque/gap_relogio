@@ -1233,7 +1233,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                 with g_eng1:
                     if not df_eng_ps.empty:
                         fig_ps = px.line(df_eng_ps, x="Data", y="Delta_medio_ciclo_mm", color="Sensor", hover_data=["Inspecao"], markers=True, title=f"Evolução de Gap - PS (Pá {eng_blade})")
-                        fig_ps.add_hline(y=5.0, line_dash="dash", line_color="red", annotation_text="Limite SEV5")
+                        fig_ps.add_hline(y=3.0, line_dash="dash", line_color="red", annotation_text="Limite SEV5")
                         fig_ps.update_xaxes(tickformat="%d/%m/%Y")
                         st.plotly_chart(fig_ps, use_container_width=True)
                 with g_eng2:
