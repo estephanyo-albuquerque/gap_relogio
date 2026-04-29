@@ -814,6 +814,20 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
             ["4", "2mm < Gap ≤ 2,5mm", "Inspect every 15 days"],
             ["5", "Gap > 2,5 mm", "STOP WTG"]
         ]
+            t_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#c6efce")),
+        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#a9d18e")),
+        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#ffd966")),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#f4b183")),
+        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ff8c00")),
+        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ff0000")),
+    ]
+    story.append(t_cat)
+    story.append(PageBreak())
     else:
         cat_data = [
             ["Severity", "Description", "Recommendation"],
