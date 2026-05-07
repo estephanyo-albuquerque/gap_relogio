@@ -756,7 +756,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     t_toc.setStyle(TableStyle([('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey)])); story.append(t_toc); story.append(PageBreak())
 
     story.append(Paragraph("2. Introduction", h1))
-    story.append(Paragraph(f"On {meta.get('date','-')}, a gap measurement inspection was performed on LM47.6 model blades, serial numbers {blades_list_txt}, installed on the {turbina_txt} wind turbine located at the COMPLEXO EÓLICO SERRA AZUL.", normal))
+    story.append(Paragraph(f"On {meta.get('date','-')}, a gap measurement inspection was performed on LM47.6 model blades, serial numbers {blades_list_txt}, installed on the {turbina_txt} wind turbine located at the COMPLEXO EÓLICO ASSURUÁ.", normal))
     story.append(Spacer(1, 1 * cm))
 
     story.append(Paragraph("3. Conclusion", h1))
