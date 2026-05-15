@@ -739,7 +739,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
 
         y0, line_h = COVER_META_START_Y_FROM_BOTTOM_CM * cm, COVER_META_LINE_H_CM * cm
         labels = ["Wtg Serial Number:", "Windfarm:", "Campaign Dates:", "Date (dd-mm-yyyy):", "Blade Model:", "Customer:"]
-        values = [turbina_txt, "COMPLEXO EÓLICO ASSURUÁ", camp_dates_txt, meta.get("date", "-"), "LM47.6", "SERENA"]
+        values = [turbina_txt, "COMPLEXO EÓLICO SERRA AZUL", camp_dates_txt, meta.get("date", "-"), "LM47.6", "ENEL"]
 
         canvas.setFont("Helvetica-Bold", COVER_META_LABEL_SIZE); canvas.setFillColor(colors.HexColor("#1F4E79"))
         for i, lab in enumerate(labels): canvas.drawString(COVER_META_LABEL_X_CM * cm, y0 - i * line_h, lab)
@@ -756,7 +756,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     t_toc.setStyle(TableStyle([('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey)])); story.append(t_toc); story.append(PageBreak())
 
     story.append(Paragraph("2. Introduction", h1))
-    story.append(Paragraph(f"On {meta.get('date','-')}, a gap measurement inspection was performed on LM47.6 model blades, serial numbers {blades_list_txt}, installed on the {turbina_txt} wind turbine located at the COMPLEXO EÓLICO ASSURUÁ.", normal))
+    story.append(Paragraph(f"On {meta.get('date','-')}, a gap measurement inspection was performed on LM47.6 model blades, serial numbers {blades_list_txt}, installed on the {turbina_txt} wind turbine located at the COMPLEXO EÓLICO SERRA AZUL.", normal))
     story.append(Spacer(1, 1 * cm))
 
     story.append(Paragraph("3. Conclusion", h1))
