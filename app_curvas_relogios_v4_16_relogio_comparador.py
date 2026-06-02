@@ -1072,11 +1072,11 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
         story.append(Paragraph("6. Damages Categorization", h1))
         cat_data = [
             ["Severity", "Description", "Recommendation"],
-            ["SEV 0", "Gap < 1,0mm or no affected area",    "4 Months"],
+            ["SEV 0", "Gap < 1,0mm OR no affected area",    "4 Months"],
             ["SEV 1", "One gap > 1,0mm",                    "2 Months"],
             ["SEV 2", "20% of area OR Gap ≥ 1,5mm",         "1 Month"],
             ["SEV 3", "20% of area AND Gap ≥ 1,5mm",        "15 Days"],
-            ["SEV 4", "30% - 40% of area",                  "Gauge Measurement or Weekly"],
+            ["SEV 4", "30% - 40% of area",                  "Gauge or Weekly"],
             ["SEV 5", "50% of area OR Gap > 3,0mm",         "Stop Turbine"],
         ]
 
