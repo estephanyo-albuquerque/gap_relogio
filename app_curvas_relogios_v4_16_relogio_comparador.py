@@ -954,7 +954,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     t_toc = Table(
         [["Section", "Page"],
          ["2. Introduction", "3"], ["3. Conclusion", "3"], ["4. Methodology", "4"],
-         ["5. Scope", "5"], ["6. Damages categorization", "5"], ["7. Inspection Evidence", "6+"]],
+         ["5. Scope", "5"], ["6. Damages Categorization", "5"], ["7. Inspection Evidence", "6+"]],
         colWidths=[14 * cm, 2 * cm]
     )
     t_toc.setStyle(TableStyle([('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey)]))
@@ -1057,6 +1057,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(Spacer(1, 0.5 * cm))
 
     if modelo == "ENEL":
+        story.append(Paragraph("6. Damages Categorization", h1))
         story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
         cat_data = [
             ["Severity", "Description", "Recommendation"],
@@ -1068,14 +1069,15 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
             ["5",  "Gap > 2,5 mm",           "STOP WTG"],
         ]
     else:
+        story.append(Paragraph("6. Damages Categorization", h1))
         cat_data = [
             ["Severity", "Description", "Recommendation"],
-            ["SEV 0", "< 1,0mm · 0% área afetada",                                  "4 Months"],
-            ["SEV 1", "1 relógio ≥ 1,0mm (10% do perímetro)",                       "2 Months"],
-            ["SEV 2", "2 relógios afetados (20%) OU ≥ 1,5mm em 1 ponto",            "1 Month"],
-            ["SEV 3", "2+ relógios (20%) E ≥ 1,5mm — extensão + magnitude",         "15 Days"],
-            ["SEV 4", "3–4 relógios afetados (30–40%)",                              "Gap Gauge or Weekly"],
-            ["SEV 5", "≥ 5 relógios (≥50%) OU gap > 3,0mm",                         "Stop Turbine"],
+            ["SEV 0", "Gap < 1,0mm or no affected area",    "4 Months"],
+            ["SEV 1", "One gap > 1,0mm",                    "2 Months"],
+            ["SEV 2", "20% of area OR Gap ≥ 1,5mm",         "1 Month"],
+            ["SEV 3", "20% of area AND Gap ≥ 1,5mm",        "15 Days"],
+            ["SEV 4", "30% - 40% of area",                  "Gauge Measurement or Weekly"],
+            ["SEV 5", "50% of area OR Gap > 3,0mm",         "Stop Turbine"],
         ]
 
     c0, c1, c2, c3, c4, c5 = "#c6efce", "#a9d18e", "#ffd966", "#f4b183", "#ff8c00", "#ff0000"
