@@ -163,18 +163,63 @@ def process_calibre_data(df_raw_cal: pd.DataFrame, perim_mm_val: float) -> pd.Da
 # =====================================================================
 
 def classify_severity_arthwind(delta_mm: float) -> str:
-    """Critérios Arthwind: 0 / 0.6 / 1.0 / 3.0 / 5.0 / >5.0"""
+    """
+    Compatibilidade: classifica sensor individual pelo gap (usado no ENEL
+    e em contextos onde só há um valor). Para classificação por pá no
+    padrão Arthwind, use classify_blade_arthwind().
+    Mantém limiar 1mm para distinguir afetado/não-afetado.
+    """
     if delta_mm is None or (isinstance(delta_mm, float) and np.isnan(delta_mm)) or delta_mm <= 0:
         return "SEV0"
     d = float(abs(delta_mm))
-    if d <= 0.6:  return "SEV1"
-    if d <= 1.0:  return "SEV2"
-    if d <= 3.0:  return "SEV3"
-    if d <= 5.0:  return "SEV4"
-    return "SEV5"
+    if d < 1.0:  return "SEV0"
+    if d < 1.5:  return "SEV1"
+    if d < 3.0:  return "SEV2"
+    return "SEV5"  # fallback simples por sensor
+
+def classify_blade_arthwind(sensor_gaps: pd.Series) -> str:
+    """
+    Critério Arthwind — Magnitude + Extensão (por pá).
+
+    Recebe uma Series com os gaps de todos os sensores da pá
+    na campanha mais recente.
+
+    Regras (ordem decrescente de prioridade):
+      SEV 5 — gap > 3,0mm em qualquer sensor
+               OU ≥ 5 relógios afetados (≥50% do perímetro)
+      SEV 4 — 3 ou 4 relógios afetados (30–40%)
+      SEV 3 — 2+ relógios afetados (≥20%) E pelo menos 1 com ≥ 1,5mm
+      SEV 2 — 2 relógios afetados (≥20%) OU qualquer sensor ≥ 1,5mm
+      SEV 1 — exatamente 1 relógio afetado (≥1,0mm, <1,5mm)
+      SEV 0 — nenhum relógio afetado
+    """
+    gaps = pd.to_numeric(sensor_gaps, errors="coerce").dropna()
+    if gaps.empty:
+        return "SEV0"
+
+    max_gap      = gaps.max()
+    n_afetados   = int((gaps >= 1.0).sum())   # relógios com gap ≥ 1mm
+    n_alta_mag   = int((gaps >= 1.5).sum())   # relógios com gap ≥ 1,5mm
+
+    # SEV 5
+    if max_gap > 3.0 or n_afetados >= 5:
+        return "SEV5"
+    # SEV 4
+    if n_afetados >= 3:
+        return "SEV4"
+    # SEV 3 — extensão (≥2) E magnitude (≥1,5mm)
+    if n_afetados >= 2 and n_alta_mag >= 1:
+        return "SEV3"
+    # SEV 2 — extensão (≥2) OU magnitude (≥1,5mm em qualquer ponto)
+    if n_afetados >= 2 or n_alta_mag >= 1:
+        return "SEV2"
+    # SEV 1 — apenas 1 relógio afetado
+    if n_afetados == 1:
+        return "SEV1"
+    return "SEV0"
 
 def classify_severity_enel(delta_mm: float) -> str:
-    """Critérios ENEL: 0 / 0.5 / 1.0 / 2.0 / 2.5 / >2.5"""
+    """Critérios ENEL por sensor: 0 / 0.5 / 1.0 / 2.0 / 2.5 / >2.5"""
     if delta_mm is None or (isinstance(delta_mm, float) and np.isnan(delta_mm)) or delta_mm <= 0:
         return "SEV0"
     d = float(abs(delta_mm))
@@ -185,10 +230,10 @@ def classify_severity_enel(delta_mm: float) -> str:
     return "SEV5"
 
 def get_classify_fn(modelo: str):
-    """Retorna a função de classificação correta para o padrão selecionado."""
+    """Retorna a função de classificação por sensor para o padrão selecionado."""
     return classify_severity_enel if modelo == "ENEL" else classify_severity_arthwind
 
-# Alias global usado pelo dashboard (padrão Arthwind, sobrescrito onde necessário)
+# Alias global
 def classify_severity(delta_mm: float) -> str:
     return classify_severity_arthwind(delta_mm)
 
@@ -360,12 +405,12 @@ def severity_recommendation(sev: str, modelo: str = "Arthwind") -> Tuple[str, dt
         }
     else:
         recs = {
-            "SEV0": ("12 Months",     dt.timedelta(days=365)),
-            "SEV1": ("6 Months",      dt.timedelta(days=182)),
-            "SEV2": ("3 Months",      dt.timedelta(days=91)),
-            "SEV3": ("1 Month",       dt.timedelta(days=30)),
-            "SEV4": ("15 Days",       dt.timedelta(days=15)),
-            "SEV5": ("Stop Turbine",  dt.timedelta(days=0)),
+            "SEV0": ("4 Months",           dt.timedelta(days=120)),
+            "SEV1": ("2 Months",           dt.timedelta(days=60)),
+            "SEV2": ("1 Month",            dt.timedelta(days=30)),
+            "SEV3": ("15 Days",            dt.timedelta(days=15)),
+            "SEV4": ("Gap Gauge or Weekly", dt.timedelta(days=7)),
+            "SEV5": ("Stop Turbine",       dt.timedelta(days=0)),
         }
     return recs.get(sev, ("Review", dt.timedelta(days=90)))
 
@@ -560,17 +605,36 @@ def run_analysis(df_in: pd.DataFrame, full_process=False, t_sel=None, b_sel=None
 
         pdf_detailed_data.append((blade, sensors_data_list))
 
-    # --- Agrupamentos com _classify correto ---
-    grouped_all = delta_summary.groupby(["Turbina", "Blade"], as_index=False)["Delta_medio_ciclo_mm"].max()
-    grouped_all.rename(columns={"Delta_medio_ciclo_mm": "Delta_max_mm"}, inplace=True)
-    grouped_all["Severity"] = grouped_all["Delta_max_mm"].apply(_classify)
-
+    # --- Agrupamentos com critério correto por padrão ---
     latest_sensors = pick_latest_rows(delta_summary, ["Turbina", "Blade", "Casca", "Regiao", "Relogio"])
+
+    def _classify_blade(group):
+        """
+        Para Arthwind usa a lógica multidimensional (magnitude + extensão).
+        Para ENEL mantém o pior gap individual (já classificado no sensor).
+        """
+        if modelo == "ENEL":
+            max_gap = group["Delta_medio_ciclo_mm"].max()
+            return _classify(max_gap)
+        else:
+            return classify_blade_arthwind(group["Delta_medio_ciclo_mm"])
+
     blade_latest = latest_sensors.groupby(["Turbina", "Blade"], as_index=False).agg(
         Delta_latest_max_mm=("Delta_medio_ciclo_mm", "max"),
         Last_Date=("Data", "max")
     )
-    blade_latest["Severity"] = blade_latest["Delta_latest_max_mm"].apply(_classify)
+    # Aplica classificação por pá usando os sensores individuais
+    sev_por_pa = (
+        latest_sensors.groupby(["Turbina", "Blade"])
+        .apply(_classify_blade)
+        .reset_index()
+        .rename(columns={0: "Severity"})
+    )
+    blade_latest = blade_latest.merge(sev_por_pa, on=["Turbina", "Blade"], how="left")
+
+    # grouped_all para compatibilidade com código downstream
+    grouped_all = blade_latest[["Turbina", "Blade", "Delta_latest_max_mm", "Severity"]].copy()
+    grouped_all.rename(columns={"Delta_latest_max_mm": "Delta_max_mm"}, inplace=True)
 
     rec_txt, next_dates = [], []
     for sev, d_last in zip(blade_latest["Severity"], blade_latest["Last_Date"]):
@@ -583,7 +647,15 @@ def run_analysis(df_in: pd.DataFrame, full_process=False, t_sel=None, b_sel=None
         Delta_latest_max_mm=("Delta_latest_max_mm", "max"),
         Last_Date=("Last_Date", "max")
     )
-    turbine_latest["Severity"] = turbine_latest["Delta_latest_max_mm"].apply(_classify)
+    # Pega a pior severidade entre as pás da turbina
+    _sev_order = {"SEV0": 0, "SEV1": 1, "SEV2": 2, "SEV3": 3, "SEV4": 4, "SEV5": 5}
+    worst_sev = (
+        blade_latest.groupby("Turbina")["Severity"]
+        .apply(lambda s: max(s, key=lambda x: _sev_order.get(x, 0)))
+        .reset_index()
+        .rename(columns={"Severity": "Severity"})
+    )
+    turbine_latest = turbine_latest.merge(worst_sev, on="Turbina", how="left")
     turbine_latest["Recommendation"] = turbine_latest["Severity"].apply(
         lambda s: severity_recommendation(s, modelo)[0]
     )
@@ -799,7 +871,7 @@ def draw_image_cover(canvas, img_reader, x: float, y: float, w: float, h: float)
         canvas.restoreState()
     except Exception: pass
 
-def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
+def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfarm=None, customer=None):
     meta = results["meta"]
     sev_df = results.get("severity_by_blade_latest", results.get("severity_by_blade"))
     _classify = results.get("classify_fn", get_classify_fn(modelo))
@@ -808,13 +880,16 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     blades_list_txt = ", ".join(map(str, meta.get("blades", [])))
     camp_dates_txt = " | ".join(meta.get("campaign_dates", [])) or "-"
 
-    # Dados da capa dependem do cliente
-    if modelo == "ENEL":
-        windfarm_txt = "COMPLEXO EÓLICO SERRA AZUL"
-        customer_txt = "ENEL"
+    # Parque e cliente: usa parâmetros recebidos; fallback por padrão se não informados
+    if windfarm:
+        windfarm_txt = windfarm
     else:
-        windfarm_txt = "COMPLEXO EÓLICO ASSURUÁ"
-        customer_txt = "SERENA"
+        windfarm_txt = "COMPLEXO EÓLICO SERRA AZUL" if modelo == "ENEL" else "COMPLEXO EÓLICO ASSURUÁ"
+
+    if customer:
+        customer_txt = customer
+    else:
+        customer_txt = "ENEL" if modelo == "ENEL" else "SERENA"
 
     def draw_cover_full(canvas, _doc):
         canvas.saveState()
@@ -925,7 +1000,14 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
         rec_final = recs_list[worst_sev_idx]
 
         story.append(Spacer(1, 0.5 * cm))
-        story.append(Paragraph(f"We recommend a new inspection within {rec_final}", normal))
+        if worst_sev_idx == 5:
+            if modelo == "ENEL":
+                rec_text = "We recommend an immediate turbine shutdown (STOP WTG)."
+            else:
+                rec_text = "We recommend an immediate turbine shutdown."
+        else:
+            rec_text = f"We recommend a new inspection within {rec_final}."
+        story.append(Paragraph(rec_text, normal))
     story.append(PageBreak())
 
     story.append(Paragraph("4. Methodology", h1))
@@ -974,8 +1056,6 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     ))
     story.append(Spacer(1, 0.5 * cm))
 
-    story.append(Paragraph("6. Damages categorization", h1))
-
     if modelo == "ENEL":
         story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
         cat_data = [
@@ -990,12 +1070,12 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind"):
     else:
         cat_data = [
             ["Severity", "Description", "Recommendation"],
-            ["SEV0", "No gaps detected",       "12 Months"],
-            ["SEV1", "Gap up to 0,6mm",        "6 Months"],
-            ["SEV2", "Gap 0,6 to 1mm",         "3 Months"],
-            ["SEV3", "Gap 1 to 3mm",           "1 Month"],
-            ["SEV4", "Gap 3 to 5mm",           "15 Days"],
-            ["SEV5", "Gap higher than 5mm",    "Stop Turbine"],
+            ["SEV 0", "< 1,0mm · 0% área afetada",                                  "4 Months"],
+            ["SEV 1", "1 relógio ≥ 1,0mm (10% do perímetro)",                       "2 Months"],
+            ["SEV 2", "2 relógios afetados (20%) OU ≥ 1,5mm em 1 ponto",            "1 Month"],
+            ["SEV 3", "2+ relógios (20%) E ≥ 1,5mm — extensão + magnitude",         "15 Days"],
+            ["SEV 4", "3–4 relógios afetados (30–40%)",                              "Gap Gauge or Weekly"],
+            ["SEV 5", "≥ 5 relógios (≥50%) OU gap > 3,0mm",                         "Stop Turbine"],
         ]
 
     c0, c1, c2, c3, c4, c5 = "#c6efce", "#a9d18e", "#ffd966", "#f4b183", "#ff8c00", "#ff0000"
@@ -1039,7 +1119,7 @@ def draw_header_footer(canvas, _doc):
         except Exception: pass
     canvas.restoreState()
 
-def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind"):
+def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind", windfarm=None, customer=None):
     _classify = results.get("classify_fn", get_classify_fn(modelo))
 
     buffer = io.BytesIO()
@@ -1048,7 +1128,7 @@ def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[in
     h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=14, textColor=colors.HexColor("#1F4E79"), spaceAfter=10)
     normal = ParagraphStyle("Norm", parent=styles["Normal"], fontSize=10, leading=12, alignment=TA_JUSTIFY)
 
-    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal, modelo=modelo)
+    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal, modelo=modelo, windfarm=windfarm, customer=customer)
     story.append(Paragraph("7. Inspection Evidence", h1))
     usable_w = A4[0] - doc.leftMargin - doc.rightMargin
     pdf_data = results["pdf_detailed_data"]
@@ -1134,7 +1214,7 @@ def generate_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[in
     doc.build(story, onFirstPage=draw_cover_full, onLaterPages=draw_header_footer)
     buffer.seek(0); return buffer.getvalue()
 
-def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind"):
+def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, List[int]], progress_callback=None, modelo="Arthwind", windfarm=None, customer=None):
     _classify = results.get("classify_fn", get_classify_fn(modelo))
 
     buffer = io.BytesIO()
@@ -1143,7 +1223,7 @@ def generate_client_pdf(results: Dict[str, Any], studs_ausentes_dict: Dict[str, 
     h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=14, textColor=colors.HexColor("#1F4E79"), spaceAfter=10)
     normal = ParagraphStyle("Norm", parent=styles["Normal"], fontSize=10, leading=12, alignment=TA_JUSTIFY)
 
-    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal, modelo=modelo)
+    story, draw_cover_full = _create_cover_and_intro(doc, results, h1, normal, modelo=modelo, windfarm=windfarm, customer=customer)
     story.append(Paragraph("7. Inspection Evidence", h1))
     usable_w = A4[0] - doc.leftMargin - doc.rightMargin
 
@@ -1269,27 +1349,422 @@ def generate_excel_report(delta_summary: pd.DataFrame):
 # PARTE 3: INTERFACE DE USUÁRIO (STREAMLIT) E DASHBOARDS
 # =====================================================================
 
-# --- Seletor de padrão no topo do dashboard (antes do botão de cálculo) ---
+# --- Seletor de padrão + parque + cliente ---
 st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ Padrão de Severidade")
+st.sidebar.subheader("⚙️ Relatório")
+
 modelo_dash = st.sidebar.selectbox(
-    "Padrão aplicado ao Dashboard e Relatórios:",
+    "Padrão de Severidade:",
     ["Arthwind", "ENEL"],
     help="Define os limiares usados em TODA a pipeline: tabelas, radares, cores e PDFs.",
     key="modelo_dash"
 )
+
+PARQUES_OPCOES = [
+    "Acaraú",
+    "Acauã",
+    "Achiras II",
+    "Agreste Potiguar",
+    "Albatroz",
+    "Alegria",
+    "Alena",
+    "Alto Sertão",
+    "Alto Sertão 3",
+    "Alto Sertão II",
+    "Amontada Windfarm",
+    "Anemus",
+    "Angicos",
+    "Anticline Wind Farm",
+    "Aquiraz",
+    "Aracati",
+    "Areia Branca",
+    "Arizona",
+    "Arizona & Honorato",
+    "Aroeira",
+    "Asa Branca",
+    "Assuruá",
+    "Assuruá 4",
+    "Assuruá 5",
+    "Atacama",
+    "Atlântica",
+    "Aventura",
+    "Aventura I",
+    "Aventura Windfarm",
+    "Babilonia",
+    "Babilônia - Vestas",
+    "Babilônia Centro",
+    "Baixa do Feijão",
+    "Barra dos Coqueiros",
+    "Bela Vista (Salinas)",
+    "Bom Jardim da Serra",
+    "Bons Ventos",
+    "Bons Ventos da Serra I",
+    "Brisa Potiguar",
+    "Brotas de Macaubas",
+    "Bureau Veritas Wind Farm",
+    "CGN",
+    "Cabeço Preto",
+    "Cabeção Preto III",
+    "Cabeção Preto V",
+    "Cabeção Preto VI",
+    "Cacimbas",
+    "Caetité",
+    "Caetité 1",
+    "Caetité 2",
+    "Caetité 3",
+    "Caetité Norte",
+    "Caetés",
+    "Cajuina I e II",
+    "Calango 1",
+    "Calango 2",
+    "Calango 3",
+    "Calango 4",
+    "Calango 5",
+    "Calangos 6",
+    "Caldeirão Grande Windfarm",
+    "Campo Largo",
+    "Campo Largo I",
+    "Campo dos Ventos",
+    "Campo dos Ventos Bloco Norte Bloco Sul",
+    "Canoa Quebrada",
+    "Canoas",
+    "Canudos",
+    "Casa Nova",
+    "Casqueira",
+    "Cassino",
+    "Catanduba",
+    "Cerro Chato",
+    "Chafariz",
+    "Chapada",
+    "Chubut",
+    "Chui GE",
+    "Chui Gamesa",
+    "Cidreira",
+    "Copel Windfarm",
+    "Coqueiros",
+    "Corredor do Senandes",
+    "Corti",
+    "Coxilha Negra",
+    "Cristal",
+    "Cumaru",
+    "Curva dos Ventos",
+    "De La Bahia I",
+    "De Praia Formosa",
+    "Delfina - Enel",
+    "Delta 1",
+    "Delta 2",
+    "Delta 3",
+    "Delta 5",
+    "Delta 6",
+    "Delta 7",
+    "Delta 8",
+    "Delta Wind Farm",
+    "Demonstration 2",
+    "El Liano",
+    "El Mataco",
+    "El Mezquite",
+    "Elera - Renascença Vestas",
+    "Embuaca (Mandacaru)",
+    "Enacel",
+    "Entorno 2",
+    "Eurus I",
+    "Eurus II",
+    "Eurus III",
+    "Faisa",
+    "Feijão",
+    "Fenicias",
+    "Flat Ridge II",
+    "Folha Larga Norte",
+    "Folha Larga Sul",
+    "Fonte dos Ventos I",
+    "Fonte dos Ventos II",
+    "Fortim",
+    "Foz do Rio Choró Windfarm",
+    "Gameleira",
+    "Garayde",
+    "Gargaú",
+    "Genoveva I",
+    "Genoveva II",
+    "Geribatu",
+    "Goodnight I Wind Farm",
+    "Grand Ridge I",
+    "Gravatá",
+    "Gravier",
+    "Hermenegildo",
+    "Honda",
+    "Ibirapuitã I",
+    "Icarai (Mandacaru)",
+    "Icarai Windfarm",
+    "Icaraizinho",
+    "Itarema",
+    "Jandaíra",
+    "Jaú",
+    "Jerusalém",
+    "Kaheawa I",
+    "Kairós",
+    "Kossuth Wind Farm",
+    "La Banderita",
+    "La Castellana",
+    "Lagoa 1",
+    "Lagoa 2",
+    "Lagoa Nova",
+    "Lagoa do Barro do Piaui (Acciona)",
+    "Lagoa do Barro do Piaui (Goldwind)",
+    "Lagoa do Mato Windfarm",
+    "Lagoa dos Ventos",
+    "MX4",
+    "Macacos",
+    "Macambira",
+    "Macambira I",
+    "Macambira II",
+    "Malleco",
+    "Mangueira Mirim",
+    "Mar e Terra (Salinas)",
+    "Maral",
+    "Mel 2",
+    "Mesa La Paz",
+    "Miassaba",
+    "Milenium",
+    "Modelo",
+    "Monte Verde",
+    "Morgado",
+    "Morrinhos",
+    "Morro do Chapeu I",
+    "Morro do Chapeu II",
+    "Morro do Cruzeiro",
+    "Morro do Vento",
+    "Morro dos Ventos I",
+    "Morro dos Ventos II",
+    "Morro dos Ventos III",
+    "Morro dos Ventos IV",
+    "Morro dos Ventos IX",
+    "Morro dos Ventos VI",
+    "Mundo Novo",
+    "Necochea",
+    "Negrete",
+    "Novo Horizonte",
+    "Oitis - GE",
+    "Oitis - LM",
+    "Ouro Branco",
+    "P13/ITU",
+    "Panther Creek Wind Farm",
+    "Papagaios",
+    "Paracuru",
+    "Parajuru",
+    "Pedra Pintada",
+    "Pedra Rajada",
+    "Pedra do Reino",
+    "Pedra do Reino III",
+    "Pegasus",
+    "Penenomé",
+    "Pepe",
+    "Pitombeira",
+    "Pontal",
+    "Porto de Suape",
+    "Puelche Sur Wind Farm",
+    "Puerto Madryn",
+    "Quatro Ventos",
+    "Quixaba",
+    "Rei dos Ventos",
+    "Rei dos Ventos / Miassaba",
+    "Renascença",
+    "Reynosa",
+    "Riachão Windfarm",
+    "Rio do Vento I",
+    "Rio do Vento II",
+    "Rosa dos Ventos Windfarm",
+    "Salitrillos",
+    "San Gabriel",
+    "San Jorge",
+    "San Pedro",
+    "San Pedro de Dalcahue 1",
+    "Santa Rosa Mundo Novo",
+    "Santana 1",
+    "Santana 2",
+    "Santana do Livramento",
+    "Santo Agostinho",
+    "Santo Antonio de Padua (Mandacaru)",
+    "Santo Inécio",
+    "Sempra I",
+    "Sempra II",
+    "Senandes",
+    "Sento Se",
+    "Seridó",
+    "Serra Azul",
+    "Serra da Babilonia",
+    "Serra das Almas",
+    "Serra das Vacas",
+    "Serra de Assuruá",
+    "Serra de Santana",
+    "Serra de Seridó",
+    "Serra do Mato",
+    "Serra do Mel I",
+    "Serra do Mel II",
+    "Serrote Windfarm",
+    "Simões",
+    "Sinoma Blades - Auditoria",
+    "São Cristovao (Mandacaru)",
+    "São Fernando",
+    "São Jorge (Mandacaru)",
+    "São Miguel do Gostoso",
+    "Taiba Windfarm",
+    "Talas I",
+    "Tanque Novo",
+    "Terra Santa",
+    "Tolpan Sur",
+    "Trairi",
+    "Trairi - GE",
+    "Trairi - Gamesa",
+    "Tres Mesas 1 e 2",
+    "Tres Mesas 3",
+    "Tres Mesas 4",
+    "Tubarão",
+    "Tucano",
+    "Umari",
+    "Umburanas",
+    "VDB3-SPDA",
+    "Vale dos Ventos",
+    "Valle de Los Vientos",
+    "Ventika I",
+    "Ventika II",
+    "Vento de Serra do Mel I",
+    "Vento de Serra do Mel II",
+    "Vento de Serra do Mel III",
+    "Ventos da Bahia",
+    "Ventos da Bahia 1",
+    "Ventos da Bahia 2",
+    "Ventos da Bahia 3",
+    "Ventos de Santa Brígida",
+    "Ventos de Santa Eugenia",
+    "Ventos de São Clemente",
+    "Ventos de São Vitor",
+    "Ventos de Tiangua",
+    "Ventos do Araripe",
+    "Ventos do Araripe 3",
+    "Ventos do Piauí I",
+    "Ventos do Piauí II e III",
+    "Ventos dos Índios II",
+    "Ventus (El Salvador)",
+    "Vicente Guerrero",
+    "Vila Acre",
+    "Vila Amazonas",
+    "Vila Mato Grosso",
+    "Vila Pará",
+    "Vila Piaui",
+    "Villalonga",
+    "Vineyard",
+    "Vitória",
+    "Volta do Rio",
+    "Xangrila Windfarm",
+    "Água Doce",
+    "Outro (digitar)",
+]
+MAPA_CLIENTE_PARQUES = {
+    "ADS": ["Corredor do Senandes"],
+    "AES": ["Penenomé"],
+    "Acciona - Chile": ["San Gabriel", "Tolpan Sur"],
+    "Aliança Energia": ["Acauã", "Gravier", "Santo Inécio"],
+    "Alupar": ["Agreste Potiguar", "Pitombeira"],
+    "Atlantic": ["Morrinhos"],
+    "Auren": ["Alto Sertão II", "Bela Vista (Salinas)", "Caetés", "Cajuina I e II", "Cassino", "Embuaca (Mandacaru)", "Icarai (Mandacaru)", "Mar e Terra (Salinas)", "Miassaba", "Rei dos Ventos", "Rei dos Ventos / Miassaba", "Santo Antonio de Padua (Mandacaru)", "Sinoma Blades - Auditoria", "São Cristovao (Mandacaru)", "São Jorge (Mandacaru)", "Tucano", "Ventos do Araripe", "Ventos do Araripe 3", "Ventos do Piauí I", "Ventos do Piauí II e III"],
+    "BVS2": ["Cacimbas"],
+    "Bureau Veritas": ["Bureau Veritas Wind Farm"],
+    "CGN Brasil Energia": ["Lagoa do Barro do Piaui (Goldwind)", "Morrinhos"],
+    "COPEL": ["Brisa Potiguar", "Vento de Serra do Mel II"],
+    "CPFL": ["Albatroz", "Aracati", "Atlântica", "Bons Ventos", "Canoa Quebrada", "De Praia Formosa", "Enacel", "Eurus I", "Eurus III", "Foz do Rio Choró Windfarm", "Gameleira", "Icaraizinho", "Lagoa do Mato Windfarm", "Macacos", "Morro do Vento", "Morro dos Ventos I", "Morro dos Ventos II", "Morro dos Ventos III", "Morro dos Ventos IV", "Morro dos Ventos IX", "Morro dos Ventos VI", "Paracuru", "Rosa dos Ventos Windfarm"],
+    "Casa dos Ventos": ["Maral", "Terra Santa"],
+    "Cemig": ["Parajuru", "Volta do Rio"],
+    "Cubico": ["Simões", "Trairi", "Ventos de Santa Brígida"],
+    "DNV": ["Tucano"],
+    "EDF": ["Folha Larga Norte", "Ventos da Bahia"],
+    "EDP Renováveis Brasil": ["Aventura I", "Baixa do Feijão", "Catanduba", "Cidreira", "Jaú", "Monte Verde"],
+    "Echoenergia": ["Lagoa Nova", "Pedra do Reino III", "Serra do Mel I", "Serra do Mel II", "Ventos de São Clemente", "Ventos de Tiangua"],
+    "Elawan Wind": ["Cabeção Preto III", "Cabeção Preto V", "Cabeção Preto VI", "Macambira I", "Macambira II"],
+    "Elera": ["Alto Sertão", "Faisa", "Pontal", "Renascença"],
+    "Eletrosul": ["Cerro Chato", "Coxilha Negra", "Entorno 2"],
+    "Enel": ["Aroeira", "Cristal", "Curva dos Ventos", "Delfina - Enel", "Fonte dos Ventos I", "Modelo", "Morro do Chapeu I", "Pedra Pintada", "Serra Azul"],
+    "Energimp": ["Bom Jardim da Serra", "Coqueiros", "Morgado", "Papagaios", "Quixaba", "Água Doce"],
+    "Engie": ["Campo Largo", "Umburanas"],
+    "Essentia Energia": ["Asa Branca", "Chapada", "Ventos de São Vitor"],
+    "European": ["Ouro Branco", "Quatro Ventos"],
+    "Eólica Ibirapuitã": ["Ibirapuitã I"],
+    "Eólicas Babilônia": ["Babilonia"],
+    "FCG": ["Aquiraz"],
+    "GE México": ["El Mezquite"],
+    "GE Renewable Energy": ["Assuruá 5", "Campo Largo", "Delta 3", "Fonte dos Ventos II", "Hermenegildo", "Oitis - GE", "Serra da Babilonia", "Serra de Seridó", "Trairi - GE", "Umburanas", "Ventos da Bahia 3", "Ventos de Tiangua"],
+    "Goldwind": ["Acaraú", "Aquiraz", "Bom Jardim da Serra", "Casa Nova", "Lagoa do Barro do Piaui (Goldwind)", "Tanque Novo", "Vitória"],
+    "Ibitu": ["Amontada Windfarm", "Caldeirão Grande Windfarm", "Icarai Windfarm", "Riachão Windfarm", "Taiba Windfarm"],
+    "Invenergy": ["Demonstration 2", "Grand Ridge I"],
+    "LM Wind Power": ["Oitis - LM", "Santo Agostinho", "Tucano", "Ventos de São Vitor"],
+    "NAWP": ["Areia Branca", "Atlântica", "Cajuina I e II", "Casqueira", "Feijão", "Fortim", "Itarema", "Jandaíra", "Lagoa do Barro do Piaui (Acciona)", "Lagoa dos Ventos", "Mangueira Mirim", "Morro do Cruzeiro", "São Fernando", "São Miguel do Gostoso", "Ventos da Bahia", "Ventos de Santa Eugenia", "Vila Amazonas", "Vila Mato Grosso", "Vila Pará", "Vila Piaui"],
+    "NAWP - Chile": ["Alena", "Atacama", "Puelche Sur Wind Farm"],
+    "NC Energias Renováveis": ["Senandes"],
+    "Neoenergia": ["Arizona", "Caetité 1", "Caetité 2", "Caetité 3", "Calango 1", "Calango 2", "Calango 3", "Calango 4", "Calango 5", "Calangos 6", "Canoas", "Lagoa 1", "Lagoa 2", "Mel 2", "Santana 1", "Santana 2"],
+    "New Energy": ["Alegria"],
+    "Nextera": ["Pegasus"],
+    "Pontal Energy": ["Caetité", "Caetité Norte", "Itarema"],
+    "Renova": ["Alto Sertão 3", "P13/ITU"],
+    "Rio Energy": ["Caetité", "Porto de Suape", "Serra da Babilonia"],
+    "SGRE": ["Arizona & Honorato", "Campo dos Ventos", "Campo dos Ventos Bloco Norte Bloco Sul", "Canudos", "Cassino", "Chafariz", "Chui Gamesa", "Delta 1", "Gameleira", "Geribatu", "Maral", "San Pedro de Dalcahue 1", "Santana do Livramento", "Santo Agostinho", "Serra de Santana", "Talas I", "Terra Santa", "Trairi - Gamesa", "Tucano", "Vento de Serra do Mel I", "Vento de Serra do Mel II", "Vento de Serra do Mel III", "Ventos de São Vitor", "Ventos do Piauí I"],
+    "SPIC": ["Milenium", "Vale dos Ventos"],
+    "Sempra Infraestructura": ["Ventika I", "Ventika II"],
+    "Serena": ["Assuruá", "Assuruá 4", "Assuruá 5", "Chui GE", "Chui Gamesa", "Delta 1", "Delta 2", "Delta 3", "Delta 5", "Delta 6", "Delta 7", "Delta 8", "Gargaú", "Geribatu", "Goodnight I Wind Farm", "Ventos da Bahia 1", "Ventos da Bahia 2", "Ventos da Bahia 3"],
+    "Serra das Vacas": ["Serra das Vacas"],
+    "Skyspecs": ["Anticline Wind Farm", "Delta Wind Farm", "Flat Ridge II", "Kaheawa I", "Kossuth Wind Farm", "Panther Creek Wind Farm", "Vineyard"],
+    "Statkraft Energias Renováveis": ["Barra dos Coqueiros", "Brotas de Macaubas", "São Fernando", "Ventos de Santa Eugenia"],
+    "Storz": ["VDB3-SPDA"],
+    "TPI": ["MX4"],
+    "Vestas Argentina": ["Achiras II", "Chubut", "Corti", "De La Bahia I", "El Liano", "El Mataco", "Garayde", "Genoveva I", "Genoveva II", "La Banderita", "La Castellana", "Necochea", "Pepe", "Puerto Madryn", "San Jorge", "Villalonga"],
+    "Vestas Brasil": ["Amontada Windfarm", "Angicos", "Aroeira", "Assuruá 4", "Aventura", "Aventura Windfarm", "Babilônia - Vestas", "Babilônia Centro", "CGN", "Cabeço Preto", "Caldeirão Grande Windfarm", "Campo Largo I", "Catanduba", "Copel Windfarm", "Cumaru", "Elera - Renascença Vestas", "Eurus II", "Folha Larga Norte", "Folha Larga Sul", "Gravatá", "Honda", "Icarai Windfarm", "Jerusalém", "Kairós", "Macambira", "Monte Verde", "Morro do Chapeu II", "Mundo Novo", "Novo Horizonte", "Ouro Branco", "Pedra Pintada", "Pedra Rajada", "Pedra do Reino", "Quatro Ventos", "Riachão Windfarm", "Rio do Vento I", "Rio do Vento II", "Santa Rosa Mundo Novo", "Sento Se", "Seridó", "Serra das Almas", "Serra das Vacas", "Serra de Assuruá", "Serra do Mato", "Serra do Mel I", "Serra do Mel II", "Serrote Windfarm", "Taiba Windfarm", "Umari", "Ventos do Piauí II e III", "Xangrila Windfarm"],
+    "Vestas Chile": ["Malleco", "Negrete", "Valle de Los Vientos"],
+    "Vestas El Salvador": ["Ventus (El Salvador)"],
+    "Vestas México": ["Fenicias", "Mesa La Paz", "Reynosa", "Salitrillos", "San Pedro", "Sempra I", "Sempra II", "Tres Mesas 1 e 2", "Tres Mesas 3", "Tres Mesas 4", "Vicente Guerrero"],
+    "Voltalia Energia Renovável": ["Areia Branca", "Vento de Serra do Mel I", "Vento de Serra do Mel III", "Vila Acre", "Vila Amazonas", "Vila Pará"],
+    "WEG": ["Acauã", "Agreste Potiguar", "Anemus", "Bons Ventos da Serra I", "Gravier", "Ibirapuitã I", "Santo Inécio", "Tubarão"],
+    "Windcraft": ["Cumaru", "Gravier", "Morro do Chapeu II"],
+    "Wobben Wind Power": ["Ventos dos Índios II"],
+}
+
+# Cliente primeiro — parque filtrado dinamicamente
+cliente_sel = st.sidebar.selectbox(
+    "Cliente / Customer:",
+    list(MAPA_CLIENTE_PARQUES.keys()) + ["Outro (digitar)"],
+    key="cliente_sel"
+)
+if cliente_sel == "Outro (digitar)":
+    cliente_final = st.sidebar.text_input(
+        "Nome do cliente:", value="", key="cliente_custom"
+    ).strip() or "CLIENTE"
+    parques_disponiveis = PARQUES_OPCOES
+else:
+    cliente_final = cliente_sel
+    parques_disponiveis = MAPA_CLIENTE_PARQUES.get(cliente_sel, []) + ["Outro (digitar)"]
+
+parque_sel = st.sidebar.selectbox(
+    "Parque / Windfarm:", parques_disponiveis, key="parque_sel"
+)
+if parque_sel == "Outro (digitar)":
+    parque_final = st.sidebar.text_input(
+        "Nome do parque:", value="", key="parque_custom"
+    ).strip() or "COMPLEXO EOLICO"
+else:
+    parque_final = parque_sel
 
 if st.button("Calcular Análise"):
     with st.spinner("Calculando Visualização..."):
         results = run_analysis(df_raw, full_process=False, modelo=modelo_dash)
         st.session_state["results"] = results
         st.session_state["modelo_usado"] = modelo_dash
+        st.session_state["parque_usado"] = parque_final
+        st.session_state["cliente_usado"] = cliente_final
         if 'df_calibre' in globals() and df_calibre is not None and not df_calibre.empty:
             st.session_state["df_calibre_proc"] = process_calibre_data(df_calibre, float(perim_mm))
 
 if "results" in st.session_state and st.session_state["results"] is not None:
     results = st.session_state["results"]
     modelo_atual = st.session_state.get("modelo_usado", "Arthwind")
+    parque_atual = st.session_state.get("parque_usado", "COMPLEXO EÓLICO SERRA AZUL")
+    cliente_atual = st.session_state.get("cliente_usado", "ENEL")
     _classify_dash = results.get("classify_fn", get_classify_fn(modelo_atual))
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1956,7 +2431,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                             if b_sel and i_sel_zip:
                                 try:
                                     res_tb = run_analysis(df_raw, full_process=False, t_sel=[tb], b_sel=b_sel, i_sel=i_sel_zip, modelo=modelo_ativo)
-                                    pdf_tb = generate_pdf(res_tb, studs_ausentes_dict, modelo=modelo_ativo)
+                                    pdf_tb = generate_pdf(res_tb, studs_ausentes_dict, modelo=modelo_ativo, windfarm=parque_atual, customer=cliente_atual)
                                     safe_name = str(tb).replace("/", "-").replace("\\", "-").strip()
                                     zf.writestr(f"ATW-{safe_name}-GAP-ENG-{modelo_ativo}.pdf", pdf_tb)
                                 except Exception as e:
@@ -1997,7 +2472,7 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                     if b_sel_cli:
                         try:
                             res_cli = run_analysis(df_raw, full_process=False, t_sel=[down_turb], b_sel=b_sel_cli, i_sel=[down_insp], modelo=modelo_ativo)
-                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_ativo)
+                            pdf_tb_cli = generate_client_pdf(res_cli, studs_ausentes_dict, modelo=modelo_ativo, windfarm=parque_atual, customer=cliente_atual)
                             safe_tb = str(down_turb).replace("/", "-").replace("\\", "-").strip()
                             campanha_safe = str(down_insp).replace("/", "-").replace("\\", "-").strip()
                             nome_final_pdf = f"ATW-{safe_tb}-{campanha_safe}-{modelo_ativo}.pdf"
