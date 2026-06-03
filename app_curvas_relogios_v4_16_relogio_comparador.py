@@ -961,7 +961,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     t_toc = Table(
         [["Section", "Page"],
          ["2. Introduction", "3"], ["3. Conclusion", "3"], ["4. Methodology", "4"],
-         ["5. Scope", "5"], ["6. Damages categorization", "5"], ["7. Inspection Evidence", "6+"]],
+         ["5. Scope", "5"], ["6. Damages Categorization", "5"], ["7. Inspection Evidence", "6+"]],
         colWidths=[14 * cm, 2 * cm]
     )
     t_toc.setStyle(TableStyle([('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey)]))
@@ -1064,6 +1064,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(Spacer(1, 0.5 * cm))
 
     if modelo == "ENEL":
+        story.append(Paragraph("6. Damages Categorization", h1))
         story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
         cat_data = [
             ["Severity", "Description", "Recommendation"],
@@ -1076,6 +1077,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
         ]
         col_w = [2.5*cm, 8.5*cm, 4.5*cm]
     else:
+        story.append(Paragraph("6. Damages Categorization", h1))
         cat_data = [
             ["Severity", "Description",                                          "Recommendation"],
             ["SEV 0",    "Gap < 1.0mm or no affected area",                      "4 Months"],
