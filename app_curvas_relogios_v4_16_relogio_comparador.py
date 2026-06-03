@@ -181,41 +181,48 @@ def classify_blade_arthwind(sensor_gaps: pd.Series) -> str:
     """
     Critério Arthwind — Magnitude + Extensão (por pá).
 
-    Recebe uma Series com os gaps de todos os sensores da pá
-    na campanha mais recente.
+    Matriz de decisão (extensão × magnitude):
 
-    Regras (ordem decrescente de prioridade):
-      SEV 5 — gap > 3,0mm em qualquer sensor
-               OU ≥ 5 relógios afetados (≥50% do perímetro)
-      SEV 4 — 3 ou 4 relógios afetados (30–40%)
-      SEV 3 — 2+ relógios afetados (≥20%) E pelo menos 1 com ≥ 1,5mm
-      SEV 2 — 2 relógios afetados (≥20%) OU qualquer sensor ≥ 1,5mm
-      SEV 1 — exatamente 1 relógio afetado (≥1,0mm, <1,5mm)
-      SEV 0 — nenhum relógio afetado
+    Extensão          | Mag < 1,5mm | Mag ≥ 1,5mm < 3,0mm | Mag ≥ 3,0mm
+    ------------------|-------------|----------------------|------------
+    0 sensores (0%)   | SEV0        | —                    | —
+    1 sensor   (10%)  | SEV1        | SEV2                 | SEV5
+    2 sensores (20%)  | SEV2        | SEV3                 | SEV5
+    3–4 sensores      | SEV4        | SEV5 (*)             | SEV5
+    ≥5 sensores (50%) | SEV5        | SEV5                 | SEV5
+
+    (*) Correção: extensão alta + magnitude próxima ao limite é tão
+        crítico quanto 1 sensor acima do limite — não pode recuar para SEV4.
     """
     gaps = pd.to_numeric(sensor_gaps, errors="coerce").dropna()
     if gaps.empty:
         return "SEV0"
 
-    max_gap      = gaps.max()
-    n_afetados   = int((gaps >= 1.0).sum())   # relógios com gap ≥ 1mm
-    n_alta_mag   = int((gaps >= 1.5).sum())   # relógios com gap ≥ 1,5mm
+    max_gap    = gaps.max()
+    n_afetados = int((gaps >= 1.0).sum())  # sensores com gap ≥ 1,0mm
 
-    # SEV 5
-    if max_gap > 3.0 or n_afetados >= 5:
+    # SEV5 — magnitude absoluta OU extensão máxima OU extensão alta + magnitude média
+    if max_gap >= 3.0 or n_afetados >= 5:
         return "SEV5"
-    # SEV 4
+    if n_afetados >= 3 and max_gap >= 1.5:   # 3-4 sensores + mag ≥ 1,5mm
+        return "SEV5"
+
+    # SEV4 — 3–4 sensores com magnitude baixa
     if n_afetados >= 3:
         return "SEV4"
-    # SEV 3 — extensão (≥2) E magnitude (≥1,5mm)
-    if n_afetados >= 2 and n_alta_mag >= 1:
+
+    # SEV3 — 2 sensores E magnitude ≥ 1,5mm
+    if n_afetados == 2 and max_gap >= 1.5:
         return "SEV3"
-    # SEV 2 — extensão (≥2) OU magnitude (≥1,5mm em qualquer ponto)
-    if n_afetados >= 2 or n_alta_mag >= 1:
+
+    # SEV2 — 2 sensores (mag < 1,5mm) OU 1 sensor com mag ≥ 1,5mm
+    if n_afetados == 2 or max_gap >= 1.5:
         return "SEV2"
-    # SEV 1 — apenas 1 relógio afetado
+
+    # SEV1 — 1 sensor com mag < 1,5mm
     if n_afetados == 1:
         return "SEV1"
+
     return "SEV0"
 
 def classify_severity_enel(delta_mm: float) -> str:
@@ -954,7 +961,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     t_toc = Table(
         [["Section", "Page"],
          ["2. Introduction", "3"], ["3. Conclusion", "3"], ["4. Methodology", "4"],
-         ["5. Scope", "5"], ["6. Damages Categorization", "5"], ["7. Inspection Evidence", "6+"]],
+         ["5. Scope", "5"], ["6. Damages categorization", "5"], ["7. Inspection Evidence", "6+"]],
         colWidths=[14 * cm, 2 * cm]
     )
     t_toc.setStyle(TableStyle([('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey)]))
@@ -1057,37 +1064,56 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(Spacer(1, 0.5 * cm))
 
     if modelo == "ENEL":
-        story.append(Paragraph("6. Damages Categorization", h1))
         story.append(Paragraph("Note: Categorization and recommendations follow ENEL specific standards.", normal))
         cat_data = [
             ["Severity", "Description", "Recommendation"],
             ["0",  "No gaps detected",       "Inspect every 6 months"],
-            ["1",  "Gap ≤ 0,5mm",            "Inspect every 6 months"],
-            ["2",  "0,5mm < Gap ≤ 1mm",      "Inspect every 3 months"],
-            ["3",  "1mm < Gap ≤ 2mm",        "Inspect every 1 month"],
-            ["4",  "2mm < Gap ≤ 2,5mm",      "Inspect every 15 days"],
+            ["1",  "Gap \u2264 0,5mm",            "Inspect every 6 months"],
+            ["2",  "0,5mm < Gap \u2264 1mm",      "Inspect every 3 months"],
+            ["3",  "1mm < Gap \u2264 2mm",        "Inspect every 1 month"],
+            ["4",  "2mm < Gap \u2264 2,5mm",      "Inspect every 15 days"],
             ["5",  "Gap > 2,5 mm",           "STOP WTG"],
         ]
+        col_w = [2.5*cm, 8.5*cm, 4.5*cm]
     else:
-        story.append(Paragraph("6. Damages Categorization", h1))
         cat_data = [
-            ["Severity", "Description", "Recommendation"],
-            ["SEV 0", "Gap < 1,0mm OR no affected area",    "4 Months"],
-            ["SEV 1", "One gap > 1,0mm",                    "2 Months"],
-            ["SEV 2", "20% of area OR Gap ≥ 1,5mm",         "1 Month"],
-            ["SEV 3", "20% of area AND Gap ≥ 1,5mm",        "15 Days"],
-            ["SEV 4", "30% - 40% of area",                  "Gauge or Weekly"],
-            ["SEV 5", "50% of area OR Gap > 3,0mm",         "Stop Turbine"],
+            ["Severity", "Description",                                          "Recommendation"],
+            ["SEV 0",    "Gap < 1.0mm or no affected area",                      "4 Months"],
+            ["SEV 1",    "One gap > 1.0mm",                                      "2 Months"],
+            ["SEV 2",    "20% of area OR Gap \u2265 1.5mm",                      "1 Month"],
+            ["SEV 3",    "20% of area AND Gap \u2265 1.5mm",                     "15 Days"],
+            ["SEV 4",    "30% - 40% of area",                                    "Gauge Measurement or Weekly"],
+            ["SEV 5",    "50% of area OR Gap > 3.0mm",                           "Stop Turbine"],
         ]
+        col_w = [2.5*cm, 8.5*cm, 4.5*cm]
 
     c0, c1, c2, c3, c4, c5 = "#c6efce", "#a9d18e", "#ffd966", "#f4b183", "#ff8c00", "#ff0000"
-    t_cat = Table(cat_data, colWidths=[3 * cm, 7 * cm, 4 * cm])
+
+    # Usa Paragraph em cada célula para controlar fonte e evitar overflow
+    sev_style   = ParagraphStyle("CatSev",  fontName="Helvetica-Bold", fontSize=9,  alignment=1, leading=11)
+    desc_style  = ParagraphStyle("CatDesc", fontName="Helvetica",      fontSize=9,  alignment=1, leading=11)
+    rec_style   = ParagraphStyle("CatRec",  fontName="Helvetica",      fontSize=8.5,alignment=1, leading=11)
+    head_style  = ParagraphStyle("CatHead", fontName="Helvetica-Bold", fontSize=9,  textColor=colors.white, alignment=1, leading=11)
+
+    def make_row(row, i):
+        if i == 0:
+            return [Paragraph(cell, head_style) for cell in row]
+        return [
+            Paragraph(row[0], sev_style),
+            Paragraph(row[1], desc_style),
+            Paragraph(row[2], rec_style),
+        ]
+
+    cat_paragraphs = [make_row(row, i) for i, row in enumerate(cat_data)]
+
+    t_cat = Table(cat_paragraphs, colWidths=col_w, repeatRows=1)
     t_cat.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
-        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
         ('ALIGN',      (0, 0), (-1, -1), 'CENTER'),
-        ('GRID',       (0, 0), (-1, -1), 0.5, colors.black),
         ('VALIGN',     (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID',       (0, 0), (-1, -1), 0.5, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor(c0)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor(c1)),
         ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor(c2)),
