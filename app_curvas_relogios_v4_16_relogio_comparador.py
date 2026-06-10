@@ -335,7 +335,7 @@ st.sidebar.subheader("Filtros Analíticos")
 # PATCH 3 — Slider de corte inicial de transiente
 trim_inicial = st.sidebar.slider(
     "Corte inicial (pontos)",
-    min_value=0, max_value=500, value=0, step=10,
+    min_value=0, max_value=2000, value=0, step=10,
     help="Remove N pontos do início de cada sinal para eliminar o transiente de partida.",
     key="trim_inicial"
 )
