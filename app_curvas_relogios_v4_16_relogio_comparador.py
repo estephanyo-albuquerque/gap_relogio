@@ -899,7 +899,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
         t_conc.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),('TEXTCOLOR',(0,0),(-1,0),colors.white),('GRID',(0,0),(-1,-1),0.5,colors.black)]))
         story.append(t_conc)
         if modelo == "ENEL": recs_list = ["6 Months","6 Months","3 Months","1 Month","15 Days","STOP WTG"]
-        else: recs_list = ["12 Months","6 Months","3 Months","1 Month","15 Days","Stop Turbine"]
+        else: recs_list = ["4 Months","2 Months","1 Month","1 Month","15 Days", "One Week (Or Gauge Measurement)", "Stop Turbine"]
         rec_final = recs_list[worst_sev_idx]
         story.append(Spacer(1, 0.5*cm))
         if worst_sev_idx == 5:
