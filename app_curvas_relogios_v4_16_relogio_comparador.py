@@ -1033,7 +1033,7 @@ def generate_pdf(results, studs_ausentes_dict, progress_callback=None, modelo="A
         img_io_polar, table_data_radar = create_radar_chart_and_table(blade, latest_sensors_r, studs_ausentes_dict, modelo=modelo)
         rl_polar = Image(img_io_polar, width=9*cm, height=9*cm)
 
-        # tabela: Sensor | Gap (mm)  — cor por magnitude do sensor
+        # tabela: Sensor | Gap (mm)  — sem cores
         t_sev = Table(table_data_radar, colWidths=[4.5*cm, 4.0*cm])
         ts = [
             ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),
@@ -1043,12 +1043,6 @@ def generate_pdf(results, studs_ausentes_dict, progress_callback=None, modelo="A
             ('GRID',(0,0),(-1,-1),0.5,colors.grey),
             ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
         ]
-        for i in range(1, len(table_data_radar)):
-            try:
-                gap_val = float(table_data_radar[i][1].replace(",","."))
-            except Exception:
-                gap_val = 0.0
-            ts.append(('BACKGROUND',(0,i),(-1,i),colors.HexColor(sensor_gap_color(gap_val))))
         t_sev.setStyle(TableStyle(ts))
 
         t_bottom = Table([[rl_polar, Spacer(1,1), t_sev]], colWidths=[9*cm, usable_w*0.04, usable_w*0.46])
@@ -1123,12 +1117,6 @@ def generate_client_pdf(results, studs_ausentes_dict, progress_callback=None, mo
             ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('ALIGN',(0,0),(-1,-1),'CENTER'),
             ('GRID',(0,0),(-1,-1),0.5,colors.grey),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
         ]
-        for i in range(1, len(table_data)):
-            try:
-                gap_val = float(table_data[i][1].replace(",","."))
-            except Exception:
-                gap_val = 0.0
-            ts.append(('BACKGROUND',(0,i),(-1,i),colors.HexColor(sensor_gap_color(gap_val))))
         t_sev.setStyle(TableStyle(ts))
         t_bottom = Table([[rl_polar,Spacer(1,1),t_sev]], colWidths=[9*cm,usable_w*0.04,usable_w*0.46])
         t_bottom.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'CENTER'),('ALIGN',(0,0),(-1,-1),'CENTER')]))
