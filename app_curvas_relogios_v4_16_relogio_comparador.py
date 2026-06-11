@@ -206,6 +206,19 @@ def severity_color(sev: str) -> str:
     }
     return palette.get(sev, "#ffffff")
 
+def sensor_gap_color(gap: float) -> str:
+    """Cor do farol por sensor individual — baseada apenas na magnitude do gap.
+    Limiares fixos independente do padrão (Arthwind/ENEL):
+      < 1.0mm  → verde
+      < 1.5mm  → amarelo
+      < 3.0mm  → laranja
+      >= 3.0mm → vermelho
+    """
+    if pd.isna(gap) or gap < 1.0:  return "#c6efce"   # verde
+    if gap < 1.5:                   return "#ffd966"   # amarelo
+    if gap < 3.0:                   return "#f4b183"   # laranja
+    return "#ff0000"                                   # vermelho
+
 def blade_area_pct(sensor_gaps: pd.Series, modelo: str) -> float:
     """Retorna o percentual de área afetada (0-100) para exibição."""
     gaps = pd.to_numeric(sensor_gaps, errors="coerce").dropna()
@@ -664,9 +677,10 @@ def create_radar_chart(blade, latest_sensors, studs_ausentes_dict, engine='plotl
             gap = row["Delta_medio_ciclo_mm"].max() if not row.empty else np.nan
             if pd.isna(gap): continue
             ang = calculate_angle(MAPA_FUROS[sens_key])
+            cor = sensor_gap_color(gap)
             fig.add_trace(go.Scatterpolar(
                 r=[1.1], theta=[ang], mode='markers+text',
-                marker=dict(size=18, color=severity_color(sev_pa), line=dict(color='black', width=1)),
+                marker=dict(size=18, color=cor, line=dict(color='black', width=1)),
                 text=[f"<b>{gap:.1f}</b>"], textposition="top center",
                 hoverinfo='text',
                 hovertext=f"<b>{sens_key}</b><br>Gap: {gap:.1f}mm<br>Sev. Pá: {sev_pa} ({area_pct:.0f}% área)",
@@ -723,8 +737,8 @@ def create_dual_line_chart(blade, df_viz_cli, colors_list, data_str):
 def create_radar_chart_and_table(blade, latest_sensors, studs_ausentes_dict, modelo="Arthwind"):
     """
     Retorna (img_polar, table_data).
-    table_data = [["Sensor", "Gap (mm)", "Área (%)"], ...]
-    A cor da linha usa a severidade DA PÁ (não do sensor).
+    table_data = [["Sensor", "Gap (mm)", "Sev. Pá"], ...]
+    Sensores >= 1mm recebem cor da severidade da pá; abaixo ficam sem cor.
     """
     sev_pa, area_pct = get_blade_severity_and_area(blade, latest_sensors, modelo)
     cor_pa           = severity_color(sev_pa)
@@ -740,8 +754,10 @@ def create_radar_chart_and_table(blade, latest_sensors, studs_ausentes_dict, mod
         ax_polar.plot([ang_rad, ang_rad], [0.9, 1.1], color='grey', linewidth=0.5)
 
     df_latest_b = latest_sensors[latest_sensors["Blade"].astype(str) == str(blade)].copy()
-    # cabeçalho: Sensor | Gap (mm) | Área (%) | Sev. Pá
-    table_data = [["Sensor", "Gap (mm)", "Área (%)", "Sev. Pá"]]
+    # cabeçalho: Sensor | Gap (mm)
+    table_data = [["Sensor", "Gap (mm)"]]
+
+    limiar_cor = 1.0  # sensores acima deste valor recebem cor no radar
 
     sorted_sensors = df_latest_b.copy()
     sorted_sensors['Furo'] = sorted_sensors.apply(lambda row: MAPA_FUROS.get(f"{row['Casca']}-{row['Regiao']}"), axis=1)
@@ -753,13 +769,14 @@ def create_radar_chart_and_table(blade, latest_sensors, studs_ausentes_dict, mod
         if furo is None: continue
         angulo_rad = calculate_angle(furo) * math.pi / 180.0
         val_gap = row["Delta_medio_ciclo_mm"]
-        # ponto no radar com cor da pá
-        ax_polar.scatter(angulo_rad, 1, color=cor_pa, s=150, edgecolors='black', zorder=10)
+        # ponto no radar: cor por magnitude do sensor
+        ponto_cor = sensor_gap_color(val_gap)
+        ax_polar.scatter(angulo_rad, 1, color=ponto_cor, s=150, edgecolors='black', zorder=10)
         ax_polar.text(angulo_rad, 1.35,
-            f"{val_gap:.1f}mm\n{sev_pa}\n{sens_key}",
+            f"{val_gap:.1f}mm\n{sens_key}",
             ha='center', va='center', fontsize=9.5, fontweight='bold', zorder=11)
         gap_fmt = f"{val_gap:.1f}".replace(".", ",") if pd.notna(val_gap) else "-"
-        table_data.append([sens_key, gap_fmt, f"{area_pct:.0f}%", sev_pa])
+        table_data.append([sens_key, gap_fmt])
 
     studs_ausentes = studs_ausentes_dict.get(str(blade), []) if isinstance(studs_ausentes_dict, dict) else []
     for stud in studs_ausentes:
@@ -871,28 +888,26 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(Paragraph("3. Conclusion", h1))
     if sev_df is not None and not sev_df.empty:
         _sev_order_map = {"SEV0":0,"SEV1":1,"SEV2":2,"SEV3":3,"SEV4":4,"SEV5":5}
-        conc_data = [["Trb-Blade", "Max Gap (mm)", "Área Afetada", "Severity"]]
+        conc_data = [["Trb-Blade", "Max Gap (mm)", "Severity"]]
         worst_sev_idx = 0
         for _, row in sev_df.iterrows():
             delta_val = row.get("Delta_latest_max_mm", np.nan)
             gap_fmt   = f"{float(delta_val):.1f}".replace(".", ",") if pd.notna(delta_val) else "-"
-            area_fmt  = f"{row.get('Area_Afetada_Pct', 0):.0f}%"
             sev       = row.get("Severity", "SEV0")
             lbl = (f"{row.get('Turbina','')}-{row.get('Blade','')}"
                    if (',' in turbina_txt or 'Selected' in turbina_txt)
                    else str(row.get("Blade", "")))
-            conc_data.append([lbl, gap_fmt, area_fmt, sev])
+            conc_data.append([lbl, gap_fmt, sev])
             worst_sev_idx = max(worst_sev_idx, _sev_order_map.get(sev, 0))
-        t_conc = Table(conc_data, colWidths=[5*cm, 3*cm, 3*cm, 3*cm])
+        t_conc = Table(conc_data, colWidths=[6*cm, 3*cm, 5*cm])
         t_conc.setStyle(TableStyle([
             ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),
             ('TEXTCOLOR',(0,0),(-1,0),colors.white),
             ('GRID',(0,0),(-1,-1),0.5,colors.black),
             ('ALIGN',(0,0),(-1,-1),'CENTER'),
         ]))
-        # colorir coluna de severidade
         for i in range(1, len(conc_data)):
-            t_conc.setStyle(TableStyle([('BACKGROUND',(3,i),(3,i),colors.HexColor(severity_color(conc_data[i][3])))]))
+            t_conc.setStyle(TableStyle([('BACKGROUND',(2,i),(2,i),colors.HexColor(severity_color(conc_data[i][2])))]))
         story.append(t_conc)
         if modelo == "ENEL": recs_list = ["6 Months","6 Months","3 Months","1 Month","15 Days","STOP WTG"]
         else: recs_list = ["4 Months","2 Months","1 Month","15 Days","Gauge Measurement or Weekly","Stop Turbine"]
@@ -1018,8 +1033,8 @@ def generate_pdf(results, studs_ausentes_dict, progress_callback=None, modelo="A
         img_io_polar, table_data_radar = create_radar_chart_and_table(blade, latest_sensors_r, studs_ausentes_dict, modelo=modelo)
         rl_polar = Image(img_io_polar, width=9*cm, height=9*cm)
 
-        # tabela: Sensor | Gap (mm) | Área (%) | Sev. Pá
-        t_sev = Table(table_data_radar, colWidths=[3.0*cm, 2.0*cm, 2.0*cm, 2.0*cm])
+        # tabela: Sensor | Gap (mm)  — cor por magnitude do sensor
+        t_sev = Table(table_data_radar, colWidths=[4.5*cm, 4.0*cm])
         ts = [
             ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),
             ('TEXTCOLOR',(0,0),(-1,0),colors.white),
@@ -1028,12 +1043,15 @@ def generate_pdf(results, studs_ausentes_dict, progress_callback=None, modelo="A
             ('GRID',(0,0),(-1,-1),0.5,colors.grey),
             ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
         ]
-        # colorir coluna Sev. Pá (col 3) com a cor da pá
         for i in range(1, len(table_data_radar)):
-            ts.append(('BACKGROUND',(3,i),(3,i),colors.HexColor(severity_color(table_data_radar[i][3]))))
+            try:
+                gap_val = float(table_data_radar[i][1].replace(",","."))
+            except Exception:
+                gap_val = 0.0
+            ts.append(('BACKGROUND',(0,i),(-1,i),colors.HexColor(sensor_gap_color(gap_val))))
         t_sev.setStyle(TableStyle(ts))
 
-        t_bottom = Table([[rl_polar, Spacer(1,1), t_sev]], colWidths=[9*cm, usable_w*0.04, usable_w*0.50])
+        t_bottom = Table([[rl_polar, Spacer(1,1), t_sev]], colWidths=[9*cm, usable_w*0.04, usable_w*0.46])
         t_bottom.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'CENTER'),('ALIGN',(0,0),(-1,-1),'CENTER')]))
         story.append(t_bottom); story.append(Spacer(1, 0.5*cm))
 
@@ -1099,16 +1117,20 @@ def generate_client_pdf(results, studs_ausentes_dict, progress_callback=None, mo
 
         img_io_polar, table_data = create_radar_chart_and_table(blade, latest_sensors_r, studs_ausentes_dict, modelo=modelo)
         rl_polar = Image(img_io_polar, width=9*cm, height=9*cm)
-        t_sev = Table(table_data, colWidths=[3.0*cm, 2.0*cm, 2.0*cm, 2.0*cm])
+        t_sev = Table(table_data, colWidths=[4.5*cm, 4.0*cm])
         ts = [
             ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),('TEXTCOLOR',(0,0),(-1,0),colors.white),
             ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('ALIGN',(0,0),(-1,-1),'CENTER'),
             ('GRID',(0,0),(-1,-1),0.5,colors.grey),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
         ]
         for i in range(1, len(table_data)):
-            ts.append(('BACKGROUND',(3,i),(3,i),colors.HexColor(severity_color(table_data[i][3]))))
+            try:
+                gap_val = float(table_data[i][1].replace(",","."))
+            except Exception:
+                gap_val = 0.0
+            ts.append(('BACKGROUND',(0,i),(-1,i),colors.HexColor(sensor_gap_color(gap_val))))
         t_sev.setStyle(TableStyle(ts))
-        t_bottom = Table([[rl_polar,Spacer(1,1),t_sev]], colWidths=[9*cm,usable_w*0.04,usable_w*0.50])
+        t_bottom = Table([[rl_polar,Spacer(1,1),t_sev]], colWidths=[9*cm,usable_w*0.04,usable_w*0.46])
         t_bottom.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'CENTER'),('ALIGN',(0,0),(-1,-1),'CENTER')]))
         story.append(t_bottom); story.append(Spacer(1,0.5*cm))
 
@@ -1774,13 +1796,13 @@ if "results" in st.session_state and st.session_state["results"] is not None:
             col_radar, col_table = st.columns([3, 1])
             df_latest_b = latest_sensors[latest_sensors["Blade"].astype(str)==str(blade)].copy()
 
-            # Monta tabela: Sensor | Gap (mm) | Área (%) | Sev. Pá
+            # Monta tabela: Sensor | Gap (mm)
             radar_data = []
             for sk in MAPA_FUROS.keys():
                 row = df_latest_b[(df_latest_b["Casca"]+"-"+df_latest_b["Regiao"])==sk]
                 gap = row["Delta_medio_ciclo_mm"].max() if not row.empty else np.nan
                 if not pd.isna(gap):
-                    radar_data.append({"Sensor": sk, "Gap (mm)": round(gap,1), "Área (%)": f"{area_pct:.0f}%", "Sev. Pá": sev_pa})
+                    radar_data.append({"Sensor": sk, "Gap (mm)": round(gap, 1)})
 
             with col_radar:
                 fig_radar = create_radar_chart(blade, latest_sensors, studs_ausentes_dict, engine='plotly', modelo=modelo_atual)
@@ -1789,7 +1811,12 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                 df_radar = pd.DataFrame(radar_data)
                 if not df_radar.empty:
                     st.markdown("<br><br><br>", unsafe_allow_html=True)
-                    st.dataframe(df_radar.style.format({"Gap (mm)": "{:.1f}"}), hide_index=True, use_container_width=True)
+                    def color_row(row):
+                        cor = sensor_gap_color(row["Gap (mm)"])
+                        return [f"background-color: {cor}"] * len(row)
+                    st.dataframe(
+                        df_radar.style.format({"Gap (mm)": "{:.1f}"}).apply(color_row, axis=1),
+                        hide_index=True, use_container_width=True)
             st.divider()
 
     # =========================================================================
