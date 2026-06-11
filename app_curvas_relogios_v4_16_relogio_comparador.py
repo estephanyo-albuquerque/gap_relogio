@@ -1811,11 +1811,8 @@ if "results" in st.session_state and st.session_state["results"] is not None:
                 df_radar = pd.DataFrame(radar_data)
                 if not df_radar.empty:
                     st.markdown("<br><br><br>", unsafe_allow_html=True)
-                    def color_row(row):
-                        cor = sensor_gap_color(row["Gap (mm)"])
-                        return [f"background-color: {cor}"] * len(row)
                     st.dataframe(
-                        df_radar.style.format({"Gap (mm)": "{:.1f}"}).apply(color_row, axis=1),
+                        df_radar.style.format({"Gap (mm)": "{:.1f}"}),
                         hide_index=True, use_container_width=True)
             st.divider()
 
