@@ -926,7 +926,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
         story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPA"), max_w=12*cm, max_h=5.5*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("For each of these 10 measuring positions individually, the final calculation is based on evaluating each of these cycles individually: first, the total variation (referred to as the delta) between the maximum and minimum points of movement is identified within each cycle, and then the final result is determined by calculating the arithmetic average of all recorded deltas.", normal))
+    story.append(Paragraph("For each of these 10 measuring positions individually, the final calculation is based on evaluating each of these cycles: first, the total variation (referred to as the range) between the maximum and minimum points of movement is identified within each cycle, and then the final result is determined by calculating the arithmetic average of all recorded ranges.", normal))
     if load_image_for_pdf("GRAF"):
         story.append(Table([[get_proportional_image(load_image_for_pdf("GRAF"), max_w=15*cm, max_h=8*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
