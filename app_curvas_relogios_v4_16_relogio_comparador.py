@@ -62,9 +62,9 @@ def calculate_angle(furo):
 
 def get_stud_zone(stud_id: int) -> str:
     if 11 <= stud_id <= 31: return "PS"
-    elif 32 <= stud_id <= 52: return "BA"
+    elif 32 <= stud_id <= 52: return "LE"
     elif 53 <= stud_id <= 73: return "SS"
-    else: return "BF"
+    else: return "TE"
 
 # ---------------------------------------------------------------------
 # PARÂMETROS DA CAPA DO PDF
@@ -888,7 +888,7 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(Paragraph("3. Conclusion", h1))
     if sev_df is not None and not sev_df.empty:
         _sev_order_map = {"SEV0":0,"SEV1":1,"SEV2":2,"SEV3":3,"SEV4":4,"SEV5":5}
-        conc_data = [["Trb-Blade", "Max Gap (mm)", "Severity"]]
+        conc_data = [["Blade", "Max Gap (mm)", "Severity"]]
         worst_sev_idx = 0
         for _, row in sev_df.iterrows():
             delta_val = row.get("Delta_latest_max_mm", np.nan)
@@ -1050,11 +1050,11 @@ def generate_pdf(results, studs_ausentes_dict, progress_callback=None, modelo="A
         story.append(t_bottom); story.append(Spacer(1, 0.5*cm))
 
         story.append(Paragraph("Registro de Studs Ausentes/Quebrados", h1))
-        stud_data = [["ID Stud","Ângulo (°)","Zona Engenharia"]]
+        stud_data = [["ID Stud", "Zone"]]
         studs_aus = studs_ausentes_dict.get(str(blade),[]) if isinstance(studs_ausentes_dict,dict) else []
-        for stud in studs_aus: stud_data.append([str(stud), f"{calculate_angle(stud):.1f}°", get_stud_zone(stud)])
+        for stud in studs_aus: stud_data.append([str(stud), get_stud_zone(stud)])
         if len(stud_data) > 1:
-            t_studs = Table(stud_data, colWidths=[4*cm,4*cm,4*cm])
+            t_studs = Table(stud_data, colWidths=[6*cm, 6*cm])
             t_studs.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),('TEXTCOLOR',(0,0),(-1,0),colors.white),('ALIGN',(0,0),(-1,-1),'CENTER'),('GRID',(0,0),(-1,-1),0.5,colors.grey)]))
             story.append(t_studs)
         else: story.append(Paragraph("Nenhum stud estrutural ausente reportado para esta pá.", normal))
@@ -1123,11 +1123,11 @@ def generate_client_pdf(results, studs_ausentes_dict, progress_callback=None, mo
         story.append(t_bottom); story.append(Spacer(1,0.5*cm))
 
         story.append(Paragraph("Missing/Broken Studs Record", h1))
-        stud_data = [["ID Stud","Ângulo (°)","Zona Engenharia"]]
+        stud_data = [["ID Stud", "Zone"]]
         studs_aus = studs_ausentes_dict.get(str(blade),[]) if isinstance(studs_ausentes_dict,dict) else []
-        for stud in studs_aus: stud_data.append([str(stud),f"{calculate_angle(stud):.1f}°",get_stud_zone(stud)])
+        for stud in studs_aus: stud_data.append([str(stud), get_stud_zone(stud)])
         if len(stud_data) > 1:
-            t_studs = Table(stud_data, colWidths=[4*cm,4*cm,4*cm])
+            t_studs = Table(stud_data, colWidths=[6*cm, 6*cm])
             t_studs.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor("#1F4E79")),('TEXTCOLOR',(0,0),(-1,0),colors.white),('ALIGN',(0,0),(-1,-1),'CENTER'),('GRID',(0,0),(-1,-1),0.5,colors.grey)]))
             story.append(t_studs)
         else: story.append(Paragraph("No missing studs reported for this blade.", normal))
