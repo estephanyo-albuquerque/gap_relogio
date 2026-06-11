@@ -34,7 +34,7 @@ IMG_DIR = "imagens"
 FILES_CONFIG = {
     "LOGO": "logo",
     "COVER": "capa",
-    "METOD_ROTOR": "metodologia_rotor",
+    "GRAF": "medição",
     "METOD_MAPA": "metodologia_2",
     "METOD_BASE": "metodologia_3"
 }
@@ -921,20 +921,16 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
     story.append(PageBreak())
 
     story.append(Paragraph("4. Methodology", h1))
-    story.append(Paragraph("The operation developed by Arthwind consists on inspecting the root gap of wind turbine blades using dial indicators, with the equipment installed externally around the blade root.", normal))
-    if load_image_for_pdf("METOD_ROTOR"):
-        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_ROTOR"), max_w=12*cm, max_h=5.5*cm)]],
+    story.append(Paragraph("To monitor displacement at the blade root, 10 dials are distributed equidistantly around the entire circumference of the root, and data is collected while the turbine rotates.", normal))
+    if load_image_for_pdf("METOD_MAPAR"):
+        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPAR"), max_w=12*cm, max_h=5.5*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("Dial indicators are mounted at specific points around the blade root using suction bases and rods. The blade is rotated 360° while the dial indicators remain in position.", normal))
-    if load_image_for_pdf("METOD_MAPA"):
-        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPA"), max_w=12*cm, max_h=5.5*cm)]],
+    story.append(Paragraph("For each of these 10 measuring positions individually, the final calculation is based on evaluating each of these cycles individually: first, the total variation (referred to as the delta) between the maximum and minimum points of movement is identified within each cycle, and then the final result is determined by calculating the arithmetic average of all recorded deltas.", normal))
+    if load_image_for_pdf("GRAF"):
+        story.append(Table([[get_proportional_image(load_image_for_pdf("GRAF"), max_w=12*cm, max_h=5.5*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("After the rotation, the maximum and minimum displacement values are analyzed to check the total variation at each point. This procedure is repeated for all blades on the turbine.", normal))
-    if load_image_for_pdf("METOD_BASE"):
-        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_BASE"), max_w=12*cm, max_h=5.5*cm)]],
-            colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(PageBreak())
 
     story.append(Paragraph("5. Scope", h1))
