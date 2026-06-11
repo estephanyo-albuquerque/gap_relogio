@@ -922,13 +922,13 @@ def _create_cover_and_intro(doc, results, h1, normal, modelo="Arthwind", windfar
 
     story.append(Paragraph("4. Methodology", h1))
     story.append(Paragraph("To monitor displacement at the blade root, 10 dials are distributed equidistantly around the entire circumference of the root, and data is collected while the turbine rotates.", normal))
-    if load_image_for_pdf("METOD_MAPAR"):
-        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPAR"), max_w=12*cm, max_h=5.5*cm)]],
+    if load_image_for_pdf("METOD_MAPA"):
+        story.append(Table([[get_proportional_image(load_image_for_pdf("METOD_MAPA"), max_w=12*cm, max_h=5.5*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(Spacer(1, 0.5*cm))
     story.append(Paragraph("For each of these 10 measuring positions individually, the final calculation is based on evaluating each of these cycles individually: first, the total variation (referred to as the delta) between the maximum and minimum points of movement is identified within each cycle, and then the final result is determined by calculating the arithmetic average of all recorded deltas.", normal))
     if load_image_for_pdf("GRAF"):
-        story.append(Table([[get_proportional_image(load_image_for_pdf("GRAF"), max_w=12*cm, max_h=5.5*cm)]],
+        story.append(Table([[get_proportional_image(load_image_for_pdf("GRAF"), max_w=15*cm, max_h=8*cm)]],
             colWidths=[A4[0]-doc.leftMargin-doc.rightMargin], style=[('ALIGN',(0,0),(-1,-1),'CENTER')]))
     story.append(Spacer(1, 0.5*cm))
     story.append(PageBreak())
