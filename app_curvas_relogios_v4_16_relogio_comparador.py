@@ -224,7 +224,7 @@ def blade_area_pct(sensor_gaps: pd.Series, modelo: str) -> float:
     """Retorna o percentual de área afetada (0-100) para exibição."""
     gaps = pd.to_numeric(sensor_gaps, errors="coerce").dropna()
     if gaps.empty: return 0.0
-    limiar = 0.5 if modelo == "ENEL" else 1.0
+    limiar = 1.0
     n_total    = len(MAPA_FUROS)   # 10 sensores
     n_afetados = int((gaps >= limiar).sum())
     return round((n_afetados / n_total) * 100, 0)
