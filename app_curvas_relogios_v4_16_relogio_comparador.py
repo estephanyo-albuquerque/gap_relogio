@@ -47,6 +47,7 @@ MAPA_FUROS = {
 DIAL_REGION_MAP = {
     "BlueDialLT6776": "LE",
     "BlueDialLT6777": "CLE",
+    "BlueDialLT6778": "CLE",
     "BlueDialLT6779": "C",
     "BlueDialLT6780": "CTE",
     "BlueDialLT6783": "TE",
